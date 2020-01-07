@@ -1,0 +1,9 @@
+Makefun Motor Board
+--------------------------------------
+
+This shield can be used to connect a receiver for a PS2 wireless controller.
+The PSX_Example sketch allows the Arduino to read the buttons and joysticks of the controller.
+
+
+IMPORTANT:
+The motor functions of my board are defective. This shield should only be used to pass the PS2 controler information to the Arduino. DO NOT attempt to use the motor functions of the board.
