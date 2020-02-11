@@ -66,6 +66,12 @@ void loop()
 {
   // Open monitor and move left joystick in x axis
   // Analog value will be displayed
-  Serial.println(ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS));
+  Serial.print(ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS));
+  Serial.print("\t");
+  Serial.print(ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS));
+  Serial.print("\t");
+  Serial.print(ps2.readButton(PS2_JOYSTICK_RIGHT_X_AXIS));
+  Serial.print("\t");
+  Serial.println(ps2.readButton(PS2_JOYSTICK_RIGHT_Y_AXIS));
   delay(100);
 }
