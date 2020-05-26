@@ -58,12 +58,16 @@ Cytron_PS2Shield ps2(10, 11); // SoftwareSerial: Rx and Tx pin
 
 void setup()
 {
+  Serial2.begin(9600);
   ps2.begin(9600); // This baudrate must same with the jumper setting at PS2 shield
   Serial.begin(9600); // Set monitor baudrate to 9600
 }
 
 void loop()
 {
+  if (Serial2.available()) {
+    Serial.print("Yeah Baby!!");
+  }
   // Open monitor and move left joystick in x axis
   // Analog value will be displayed
   Serial.print(ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS));
