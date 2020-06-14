@@ -14,19 +14,23 @@
  * a) Drive control using LEFT joystick:        (Y-Axis = drive speed, X-Axis = turn speed)
  * b) Arm control using RIGHT joystick:         (Y-Axis = UP - pull back / DOWN - push forward)
  * c) Activate Weed Trimmer using R2:           (R2 pressed = ON, R2 released = OFF)
- * d) Pump Air                                  (TRIANGLE Button)
- * e) Open Scoop                                (CIRCLE Button)
- * f) Close Scoop                               (SQUARE Button)
- * g) Pickup Item (AUTOMATED)                   (CROSS Button)
+ * d)
+ * TODO:
+ * e) Pump Air                                  (TRIANGLE Button)
+ * f) Open Scoop                                (CIRCLE Button)
+ * g) Close Scoop                               (SQUARE Button)
+ * h) Pickup Item (AUTOMATED)                   (CROSS Button)
 */
 
 #include <SoftwareSerial.h>
 #include "Cytron_PS2Shield.h"
 #include <Adafruit_MotorShield.h>
 #include <Stepper.h>
+#include "TimerOne.h"
 
 //#define DEBUG_DRIVE
 #define DEBUG_ARM
+#define DEBUG_DPAD
  
 //Create PS2Shield object
 Cytron_PS2Shield ps2(8, 9); // SoftwareSerial: assign Rx and Tx pin
@@ -57,10 +61,41 @@ const float GEAR_REDUCTION = 64;  //Internal stepper motor gear reduction of 64 
 const float STEPS_PER_OUT_REV = STEPS_PER_REV * GEAR_REDUCTION;   //Number of steps required to rotate the output shaft 1 revolution
 int stepsRequired;        //Number of steps required for the current command
 int stepperState = 0;     //Track current position of stepper motor with regards to teh switch it is activating
-
+int commandState = 0;     //Track if a command is currently being executed
 Stepper stepperMotor(STEPS_PER_REV, 4, 6, 5, 7);    //Define stepper motor and the pins used to control the coils
 
+//Encoders
+const byte MOTOR1 = 2;  //assign hardware interrupt pins to each motor
+const byte MOTOR2 = 3;
+//IMPORTANT: Variables that need to be modified within an ISR MUST be declared as "volatile". See Arduino reference listed above.
+volatile int encoder1 = 0; //variables to count encoder disc "ticks" each time the encoder circuitry sends an interrupt pulse. 
+volatile int encoder2 = 0;
 
+/**************INTERRUPT SERVICE ROUTINES******************/
+//Motor1 pulse count ISR
+void ISR_encoder1() {
+  encoder1++;
+}
+
+//Motor2 pulse count ISR
+void ISR_encoder2() {
+  encoder2++;
+}
+
+//TimerOne ISR
+void ISR_timerone() {
+  Timer1.detachInterrupt();   //Stop Timer1 to allow time for serial print out
+  #ifdef DEBUG_DPAD
+  Serial.print("encoder1: ");
+  Serial.print(encoder1);
+  Serial.print("/t");
+  Serial.print("encoder2: ");
+  Serial.println(encoder2);
+  #endif
+  encoder1 = 0;               //Reset encoders
+  encoder2 = 0;
+  Timer1.attachInterrupt(ISR_timerone);
+}
 
 void setup()
 {
@@ -68,6 +103,9 @@ void setup()
   pinMode(relay_2, OUTPUT);
   pinMode(relay_3, OUTPUT);
   pinMode(relay_4, OUTPUT);
+
+  pinMode(MOTOR1, INPUT);
+  pinMode(MOTOR2, INPUT);
   
   ps2.begin(115200);          //Start remote control shield and set baud rate (baudrate must be the same as the jumper setting at PS2 shield)
   Serial.begin(115200);       //Set baudrate for serial monitor
@@ -83,10 +121,39 @@ void setup()
   Motor_Arm->setSpeed(255);
   Motor_Arm->run(FORWARD);
   Motor_Arm->run(RELEASE);
+
+  attachInterrupt(digitalPinToInterrupt(MOTOR1), ISR_encoder1, RISING);   //Attach interrupt service routines to hardware interrupt pins and set trigger mode.
+  attachInterrupt(digitalPinToInterrupt(MOTOR2), ISR_encoder2, RISING);
+  Timer1.initialize(1000000);   //Timer1 accepts parameter in microseconds. Set to one million for 1 second.
+  Timer1.attachInterrupt(ISR_timerone);   //Enable the timer
 }
 
 void loop()
 { 
+  /***************************
+            D-PAD
+   **************************/
+  #ifdef DEBUG_DPAD
+  //UP
+  if(ps2.readButton(PS2_UP) == 0)   // 0 = pressed, 1 = released
+  {
+    delay(10);
+    if(ps2.readButton(PS2_UP) == 0 && commandState == 0) {
+      commandState = 1;
+      Motor_Left->setSpeed(200);
+      Motor_Right->setSpeed(200);
+      Motor_Left->run(FORWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(FORWARD);
+      delay(3000);
+      Motor_Left->setSpeed(0);
+      Motor_Right->setSpeed(0);
+      Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(RELEASE);
+      commandState = 0;
+    }
+  }
+  #endif
+  
   /***************************
       TRIGGERS - STEPPER MOTOR
    ***************************/
