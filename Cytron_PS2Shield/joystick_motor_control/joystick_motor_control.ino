@@ -37,10 +37,10 @@ Cytron_PS2Shield ps2(8, 9); // SoftwareSerial: assign Rx and Tx pin
 //Cytron_PS2Shield ps2; // Create object without paramaters to use the default hardware serial pins 0(RX) and 1(TX)
 // Create the motor shield object (with the default I2C address)
 Adafruit_MotorShield AFMS = Adafruit_MotorShield(); 
-// Create DC motors on ports M1, M2, and M3 (refer to the motor shield PCB screenprint)
+// Create DC motors on ports M1, M2, and M4 (refer to the motor shield PCB screenprint - choice of motors based on physical location due to connecting wire length.)
 Adafruit_DCMotor *Motor_Left = AFMS.getMotor(1);
 Adafruit_DCMotor *Motor_Right = AFMS.getMotor(2);
-Adafruit_DCMotor *Motor_Arm = AFMS.getMotor(3);
+Adafruit_DCMotor *Motor_Arm = AFMS.getMotor(4);
 
 int joystick_drive = 0;       //left joystick position in Y axis (FORWARD and BACKWARD)
 int joystick_steer = 0;       //left joystick position in X axis (LEFT and RIGHT)
@@ -85,15 +85,13 @@ void ISR_encoder2() {
 //TimerOne ISR
 void ISR_timerone() {
   Timer1.detachInterrupt();   //Stop Timer1 to allow time for serial print out
-  #ifdef DEBUG_DPAD
-  Serial.print("encoder1: ");
+//  #ifdef DEBUG_DPAD
+//  Serial.print("encoder1: ");
   Serial.print(encoder1);
-  Serial.print("/t");
-  Serial.print("encoder2: ");
+  Serial.print("\t");
+//  Serial.print("encoder2: ");
   Serial.println(encoder2);
-  #endif
-  encoder1 = 0;               //Reset encoders
-  encoder2 = 0;
+//  #endif
   Timer1.attachInterrupt(ISR_timerone);
 }
 
@@ -139,12 +137,15 @@ void loop()
   {
     delay(10);
     if(ps2.readButton(PS2_UP) == 0 && commandState == 0) {
+      Serial.println("UP Pressed!");
+      encoder1 = 0;               //Reset encoders
+      encoder2 = 0;
       commandState = 1;
       Motor_Left->setSpeed(200);
       Motor_Right->setSpeed(200);
       Motor_Left->run(FORWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
       Motor_Right->run(FORWARD);
-      delay(3000);
+      delay(5000);
       Motor_Left->setSpeed(0);
       Motor_Right->setSpeed(0);
       Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
@@ -335,11 +336,11 @@ void loop()
 
     if (arm_speed > 0) {
       Motor_Arm->setSpeed(motor_speed_arm);
-      Motor_Arm->run(FORWARD);   //Run motor in direction to LOWER arm when joystick is "pushed forward"
+      Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm when joystick is "pushed forward"
     }
     else if (arm_speed < 0) {   //Check if negative..
       Motor_Arm->setSpeed(-motor_speed_arm);    //Always pass "setSpeed" a positive value. Multiply the passed argument by -1 to make the passed value positive.
-      Motor_Arm->run(BACKWARD);   //Run motor in direction to LIFT arm when joystick is "pulled back"
+      Motor_Arm->run(FORWARD);   //Run motor in direction to LIFT arm when joystick is "pulled back"
     }
 
     #ifdef DEBUG_ARM
