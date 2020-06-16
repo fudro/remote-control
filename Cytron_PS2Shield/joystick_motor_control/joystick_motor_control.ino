@@ -29,7 +29,7 @@
 #include "TimerOne.h"
 
 //#define DEBUG_DRIVE
-#define DEBUG_ARM
+//#define DEBUG_ARM
 #define DEBUG_DPAD
  
 //Create PS2Shield object
@@ -141,10 +141,16 @@ void loop()
       encoder1 = 0;               //Reset encoders
       encoder2 = 0;
       commandState = 1;
-      Motor_Left->setSpeed(200);
-      Motor_Right->setSpeed(200);
+
       Motor_Left->run(FORWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
       Motor_Right->run(FORWARD);
+      int i=0;
+      for (i=0; i<200; i++) {
+        Motor_Left->setSpeed(i);
+        Motor_Right->setSpeed(i);  
+        delay(10);
+      }
+      Motor_Right->setSpeed(i+18);    //Adjust motor power to account for mechanically induced drift
       delay(5000);
       Motor_Left->setSpeed(0);
       Motor_Right->setSpeed(0);
