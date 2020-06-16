@@ -150,7 +150,7 @@ void loop()
         Motor_Right->setSpeed(i);  
         delay(10);
       }
-      Motor_Right->setSpeed(i+18);    //Adjust motor power to account for mechanically induced drift
+      Motor_Right->setSpeed(i+15);    //Adjust motor power to account for mechanically induced drift
       delay(5000);
       Motor_Left->setSpeed(0);
       Motor_Right->setSpeed(0);
