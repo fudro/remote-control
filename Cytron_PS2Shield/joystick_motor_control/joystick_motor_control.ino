@@ -14,12 +14,16 @@
  * a) Drive control using LEFT joystick:        (Y-Axis = drive speed, X-Axis = turn speed)
  * b) Arm control using RIGHT joystick:         (Y-Axis = UP - pull back / DOWN - push forward)
  * c) Activate Weed Trimmer using R2:           (R2 pressed = ON, R2 released = OFF)
- * d)
+ * d) D-Pad programmatic drive test             (UP direction = drive forward for 5 seconds, motor adjustment values for "straight" travel. Left:200, Right:215)
  * TODO:
  * e) Pump Air                                  (TRIANGLE Button)
  * f) Open Scoop                                (CIRCLE Button)
  * g) Close Scoop                               (SQUARE Button)
  * h) Pickup Item (AUTOMATED)                   (CROSS Button)
+ * NOTES:
+ * Currently, for testing, the pump and valve can be manually activated using two button combinations:
+ * Pump:  TRIANGLE, CIRCLE.
+ * Valve: SQUARE, CROSS
 */
 
 #include <SoftwareSerial.h>
@@ -237,35 +241,141 @@ void loop()
   }
 
 
+//  /****************************
+//      JOYSTICKS
+//  ****************************/
+//  //LEFT joystick position
+//  joystick_drive = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD is negative)
+//  joystick_steer = ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT??? is positive)
+//  
+//  if (joystick_drive > 5 || joystick_drive < -10) {       //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD.
+//    drive_speed = map(joystick_drive, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (center to extremity)
+//    turn_speed = map(joystick_steer, 0, 128, 0, 255);               
+//
+//    //MOVING FORWARD
+//    if (drive_speed > 0) {
+//      
+//      //If turning LEFT:
+//      if (joystick_steer < 0) {
+//        motor_speed_left = drive_speed + turn_speed * 0.5;
+//        if(motor_speed_left < 0) {
+//          motor_speed_left = 0;
+//        }
+//        motor_speed_right = drive_speed; 
+//      }
+//      //If turning RIGHT:
+//      else if (joystick_steer > 0) {
+//        motor_speed_left = drive_speed;
+//        motor_speed_right = drive_speed - turn_speed * 0.5;
+//        if(motor_speed_right < 0) {
+//          motor_speed_right = 0;
+//        }
+//      }
+//      else {
+//        motor_speed_left = drive_speed;
+//        motor_speed_right = drive_speed;
+//      }
+//      Motor_Left->setSpeed(motor_speed_left);
+//      Motor_Right->setSpeed(motor_speed_right);
+//      Motor_Left->run(FORWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+//      Motor_Right->run(FORWARD);
+//    }
+//
+//    //MOVING BACKWARD
+//    else if (drive_speed < 0) {
+//      //If turning LEFT (Robot rotating RIGHT):
+//      if (joystick_steer < 0) {
+//        motor_speed_left = drive_speed - turn_speed * 0.5;
+//        if(motor_speed_left > 0) {
+//          motor_speed_left = 0;
+//        }
+//        motor_speed_right = drive_speed;
+//        
+//      }
+//      //If turning RIGHT:
+//      else if (joystick_steer > 0) {
+//        motor_speed_left = drive_speed;
+//        motor_speed_right = drive_speed + turn_speed * 0.5;
+//        if(motor_speed_right > 0) {
+//          motor_speed_right = 0;
+//        }
+//      }
+//      else {
+//        motor_speed_left = drive_speed;
+//        motor_speed_right = drive_speed;
+//      }
+//      Motor_Left->setSpeed(-motor_speed_left);    //IMPORTANT: Multiply motor speeds by -1 to convert to a positive value since direction is controlled by the "run" command.
+//      Motor_Right->setSpeed(-motor_speed_right);
+//      Motor_Left->run(BACKWARD);
+//      Motor_Right->run(BACKWARD);
+//    }
+//    
+//    #ifdef DEBUG_DRIVE
+//    Serial.print ("joystick drive: ");
+//    Serial.print (joystick_drive);
+//    Serial.print ("\t");
+//    Serial.print ("drive speed: ");
+//    Serial.print (drive_speed);
+//    Serial.print ("\t");
+//    Serial.print ("turn_speed: ");
+//    Serial.print (turn_speed);
+//    Serial.print ("\t");
+//    Serial.print ("motor_left: ");
+//    Serial.print (motor_speed_left);
+//    Serial.print ("\t");
+//    Serial.print ("motor_right: ");
+//    Serial.println (motor_speed_right);
+//    #endif
+//    
+//  }
+//  else {
+//    motor_speed_left = 0;
+//    motor_speed_right = 0;
+//    Motor_Left->setSpeed(0);
+//    Motor_Right->setSpeed(0);
+//    Motor_Left->run(RELEASE);
+//    Motor_Right->run(RELEASE);
+//  }
+
   /****************************
-      JOYSTICKS
+      JOYSTICKS -- NEW VERSION
   ****************************/
   //LEFT joystick position
-  joystick_drive = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD is negative)
-  joystick_steer = ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS) - 128;  //Get joystick difference from center position (BACKWARD is positive)
+  joystick_drive = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD is positive DOUBLE CHECK)
+  joystick_steer = ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT is positive DOUBLE CHECK)
   
   if (joystick_drive > 5 || joystick_drive < -10) {       //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD.
-    drive_speed = map(joystick_drive, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (center to extremity)
-    turn_speed = map(joystick_steer, 0, 128, 0, 255);               
+//    drive_speed = map(joystick_drive, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (center to extremity)
+//    turn_speed = map(joystick_steer, 0, 128, 0, 255);   
+    
+    drive_speed = joystick_drive / 128;     //Convert joystick value into a fraction of the maximum joystick value in forward direction
+    drive_speed = drive_speed * 255;        //Multiply fractional "drive_speed" value by maximum motorshield channel value to get base motor speed.
+    turn_speed = (128 - abs(joystick_steer)) / 128;    //Convert joystick value into a fractional value based on the difference between 
+                                                       //the maximum joystick value and the current value divided by the maximum joystick value.
+                                                       //The fractional value with DECREASE as the joystick is pushed farther in the turn direction.
+    turn_speed = turn_speed * 255;    //Multiply fractional "turn_speed" value by maximum motorshield channel value to get comapatible motor speed for further calculations.
 
     //MOVING FORWARD
-    if (drive_speed > 0) {
+    if (drive_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is positive)
       
       //If turning LEFT:
-      if (joystick_steer < 0) {
-        motor_speed_left = drive_speed + turn_speed * 0.5;
-        if(motor_speed_left < 0) {
-          motor_speed_left = 0;
-        }
-        motor_speed_right = drive_speed; 
+      if (joystick_steer < 0) {   //Check LEFT/RIGHT direction of joystick
+        motor_speed_left = drive_speed;   //Set the left wheel to the current drive_speed (which will automatically decrease as the joystick is pushed farther left)
+        motor_speed_right = drive_speed + (turn_speed * (255 - drive_speed));   //Adjust the right wheel speed to a higher speed based on a fraction of the difference between
+                                                                                //the maximum drive speed and the current drive speed.
+                                                                                //Multiplying the turn_speed fractional value by the DIFFERENCE between 
+                                                                                //the max motor speed and the current drive_speed value ensures that the boost value will never 
+                                                                                //cause the total speed to be more than the maximum value allowed by the motorshield.
+                                                                                //This will boost the right wheel to maintain more turning power toward the left even as the overall
+                                                                                //drive_speed for both wheels is decreasing.
+                                                                                //The intended effect is that there will be enough power differential between the right and left
+                                                                                //wheels for an effective turn while allowing both wheels to evenetually slow to a stop as the 
+                                                                                //joystick is pushed toward the 9 o'clock position.
       }
       //If turning RIGHT:
       else if (joystick_steer > 0) {
-        motor_speed_left = drive_speed;
-        motor_speed_right = drive_speed - turn_speed * 0.5;
-        if(motor_speed_right < 0) {
-          motor_speed_right = 0;
-        }
+        motor_speed_left = drive_speed + (turn_speed * (255 - drive_speed));
+        motor_speed_right = drive_speed;
       }
       else {
         motor_speed_left = drive_speed;
@@ -273,10 +383,10 @@ void loop()
       }
       Motor_Left->setSpeed(motor_speed_left);
       Motor_Right->setSpeed(motor_speed_right);
-      Motor_Left->run(FORWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Left->run(FORWARD);
       Motor_Right->run(FORWARD);
     }
-
+    //TODO: NEED TO UPDATE THE "BACKWARD" SECTION TO MATCH THE "FORWARD" SECTION
     //MOVING BACKWARD
     else if (drive_speed < 0) {
       //If turning LEFT (Robot rotating RIGHT):
