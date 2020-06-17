@@ -184,7 +184,7 @@ void loop()
     if(ps2.readButton(PS2_RIGHT_2) == 0 && stepperState == 0) { //double check buttonstate after short delay to prevent false trigger
       //Rotate CW
       stepperState = 1;
-      stepsRequired = STEPS_PER_OUT_REV/5;    //Rotate one-fifth of a revolution
+      stepsRequired = STEPS_PER_OUT_REV/5;    //Rotate one-fifth of a revolution. Change divisor value to adjust amount of rotation.
       stepperMotor.setSpeed(700);
       stepperMotor.step(stepsRequired);
     }
