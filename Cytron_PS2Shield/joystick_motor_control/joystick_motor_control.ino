@@ -50,6 +50,8 @@ Adafruit_DCMotor *Motor_Arm = AFMS.getMotor(4);
 
 int joystick_drive = 0;       //left joystick position in Y axis (FORWARD and BACKWARD)
 int joystick_steer = 0;       //left joystick position in X axis (LEFT and RIGHT)
+int last_drive_speed = 0;  //store last value for comparison - used to prevent huge jumps in motor current due to rapid joystick changes which can overload buck converter. 
+int ramp_step = 1;            //maximum ammount the motor speed can change (up or down) per loop iteration
 int joystick_arm = 0;         //right joystick position in Y axis (UP and DOWN). TODO:Direction is inverted - pull back to lift UP
 float drive_speed = 0.0;     //base speed component in the FORWARD/BACKWARD direction - derived from "joystick_drive"
 float turn_speed = 0.0;      //speed adjustment value for left and right wheels while turning
@@ -355,6 +357,15 @@ void loop()
   if (joystick_drive > 5 || joystick_drive < -10) {       //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD.
     drive_speed = map(joystick_drive, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (center to extremity)
     turn_speed = map(joystick_steer, 0, 128, 0, 255);   
+
+    //Ramp motor speed
+    if (drive_speed > last_drive_speed) {
+      drive_speed = last_drive_speed + ramp_step;
+    }
+    else if (drive_speed < last_drive_speed) {
+      drive_speed = last_drive_speed - ramp_step;
+    }
+    last_drive_speed = drive_speed;
     
     //MOVING FORWARD
     if (drive_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is positive)
