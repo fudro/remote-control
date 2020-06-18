@@ -33,9 +33,9 @@
 #include "TimerOne.h"
 
 #define DRIVE_MOTORS
+//#define ARM_MOTOR
 #define DEBUG_DRIVE
-//#define DEBUG_TEST
-//#define DEBUG_ARM
+#define DEBUG_ARM
 //#define DEBUG_DPAD
  
 //Create PS2Shield object
@@ -247,103 +247,6 @@ void loop()
     digitalWrite(13, HIGH);
   }
 
-
-//  /****************************
-//      JOYSTICKS
-//  ****************************/
-//  //LEFT joystick position
-//  joystick_drive = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD is negative)
-//  joystick_steer = ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT??? is positive)
-//  
-//  if (joystick_drive > 5 || joystick_drive < -10) {       //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD.
-//    drive_speed = map(joystick_drive, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (center to extremity)
-//    turn_speed = map(joystick_steer, 0, 128, 0, 255);               
-//
-//    //MOVING FORWARD
-//    if (drive_speed > 0) {
-//      
-//      //If turning LEFT:
-//      if (joystick_steer < 0) {
-//        motor_speed_left = drive_speed + turn_speed * 0.5;
-//        if(motor_speed_left < 0) {
-//          motor_speed_left = 0;
-//        }
-//        motor_speed_right = drive_speed; 
-//      }
-//      //If turning RIGHT:
-//      else if (joystick_steer > 0) {
-//        motor_speed_left = drive_speed;
-//        motor_speed_right = drive_speed - turn_speed * 0.5;
-//        if(motor_speed_right < 0) {
-//          motor_speed_right = 0;
-//        }
-//      }
-//      else {
-//        motor_speed_left = drive_speed;
-//        motor_speed_right = drive_speed;
-//      }
-//      Motor_Left->setSpeed(motor_speed_left);
-//      Motor_Right->setSpeed(motor_speed_right);
-//      Motor_Left->run(FORWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
-//      Motor_Right->run(FORWARD);
-//    }
-//
-//    //MOVING BACKWARD
-//    else if (drive_speed < 0) {
-//      //If turning LEFT (Robot rotating RIGHT):
-//      if (joystick_steer < 0) {
-//        motor_speed_left = drive_speed - turn_speed * 0.5;
-//        if(motor_speed_left > 0) {
-//          motor_speed_left = 0;
-//        }
-//        motor_speed_right = drive_speed;
-//        
-//      }
-//      //If turning RIGHT:
-//      else if (joystick_steer > 0) {
-//        motor_speed_left = drive_speed;
-//        motor_speed_right = drive_speed + turn_speed * 0.5;
-//        if(motor_speed_right > 0) {
-//          motor_speed_right = 0;
-//        }
-//      }
-//      else {
-//        motor_speed_left = drive_speed;
-//        motor_speed_right = drive_speed;
-//      }
-//      Motor_Left->setSpeed(-motor_speed_left);    //IMPORTANT: Multiply motor speeds by -1 to convert to a positive value since direction is controlled by the "run" command.
-//      Motor_Right->setSpeed(-motor_speed_right);
-//      Motor_Left->run(BACKWARD);
-//      Motor_Right->run(BACKWARD);
-//    }
-//    
-//    #ifdef DEBUG_DRIVE
-//    Serial.print ("joystick drive: ");
-//    Serial.print (joystick_drive);
-//    Serial.print ("\t");
-//    Serial.print ("drive speed: ");
-//    Serial.print (drive_speed);
-//    Serial.print ("\t");
-//    Serial.print ("turn_speed: ");
-//    Serial.print (turn_speed);
-//    Serial.print ("\t");
-//    Serial.print ("motor_left: ");
-//    Serial.print (motor_speed_left);
-//    Serial.print ("\t");
-//    Serial.print ("motor_right: ");
-//    Serial.println (motor_speed_right);
-//    #endif
-//    
-//  }
-//  else {
-//    motor_speed_left = 0;
-//    motor_speed_right = 0;
-//    Motor_Left->setSpeed(0);
-//    Motor_Right->setSpeed(0);
-//    Motor_Left->run(RELEASE);
-//    Motor_Right->run(RELEASE);
-//  }
-
   /****************************
       JOYSTICKS -- NEW VERSION
       TODO: ADD RAMPING START FOR DRIVE MOTORS
@@ -440,10 +343,11 @@ void loop()
   //RIGHT joystick position
   joystick_arm = 128 - ps2.readButton(PS2_JOYSTICK_RIGHT_Y_AXIS);  //Get joystick difference from center position (UP is positive)
 
-  if (joystick_arm > 5 || joystick_arm < -5) {       //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD.
+  if (joystick_arm > 10 || joystick_arm < -10) {       //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD.
     arm_speed = map(joystick_arm, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (center to extremity)
     motor_speed_arm = arm_speed;
 
+    #ifdef ARM_MOTOR
     if (arm_speed > 0) {
       Motor_Arm->setSpeed(motor_speed_arm);
       Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm when joystick is "pushed forward"
@@ -452,6 +356,7 @@ void loop()
       Motor_Arm->setSpeed(-motor_speed_arm);    //Always pass "setSpeed" a positive value. Multiply the passed argument by -1 to make the passed value positive.
       Motor_Arm->run(FORWARD);   //Run motor in direction to LIFT arm when joystick is "pulled back"
     }
+    #endif
 
     #ifdef DEBUG_ARM
     Serial.print ("joystick arm: ");
@@ -467,8 +372,11 @@ void loop()
   else {
     motor_speed_arm = 0;
     arm_speed = 0;
+    
+    #ifdef ARM_MOTOR
     Motor_Arm->setSpeed(0);
     Motor_Arm->run(RELEASE);
+    #endif
   }
   
   delay(50);    //Master delay between cycles
