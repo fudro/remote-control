@@ -33,7 +33,7 @@
 #include "TimerOne.h"
 
 #define DRIVE_MOTORS
-//#define ARM_MOTOR
+#define ARM_MOTOR
 #define DEBUG_DRIVE
 #define DEBUG_ARM
 //#define DEBUG_DPAD
@@ -51,8 +51,10 @@ Adafruit_DCMotor *Motor_Arm = AFMS.getMotor(4);
 int joystick_drive = 0;       //left joystick position in Y axis (FORWARD and BACKWARD)
 int joystick_steer = 0;       //left joystick position in X axis (LEFT and RIGHT)
 int last_drive_speed = 0;  //store last value for comparison - used to prevent huge jumps in motor current due to rapid joystick changes which can overload buck converter. 
-int ramp_step = 1;            //maximum ammount the motor speed can change (up or down) per loop iteration
+int ramp_step = 7;            //maximum ammount the motor speed can change (up or down) per loop iteration
 int joystick_arm = 0;         //right joystick position in Y axis (UP and DOWN). TODO:Direction is inverted - pull back to lift UP
+int arm_min = 75;             //lowest mechanically safe position for the arm (may vary depending on current attachment
+int arm_max = 300;            //highest mechanically safe position for the arm (may vary depending on current attachment
 float drive_speed = 0.0;     //base speed component in the FORWARD/BACKWARD direction - derived from "joystick_drive"
 float turn_speed = 0.0;      //speed adjustment value for left and right wheels while turning
 float arm_speed = 0.0;        //speed of arm motor
@@ -153,8 +155,8 @@ void loop()
       commandState = 1;
       
       #ifdef DRIVE_MOTORS
-      Motor_Left->run(FORWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
-      Motor_Right->run(FORWARD);
+      Motor_Left->run(BACKWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(BACKWARD);
       int i=0;
       for (i=0; i<200; i++) {
         Motor_Left->setSpeed(i);
@@ -250,26 +252,16 @@ void loop()
   }
 
   /****************************
-      JOYSTICKS -- NEW VERSION
-      TODO: ADD RAMPING START FOR DRIVE MOTORS
+      JOYSTICKS
   ****************************/
   //LEFT joystick position
   joystick_drive = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD is positive)
   joystick_steer = ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT is positive)
   
-  if (joystick_drive > 5 || joystick_drive < -10) {       //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD.
+  if (joystick_drive > 10 || joystick_drive < -10) {       //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD.
     drive_speed = map(joystick_drive, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (center to extremity)
     turn_speed = map(joystick_steer, 0, 128, 0, 255);   
-
-    //Ramp motor speed
-    if (drive_speed > last_drive_speed) {
-      drive_speed = last_drive_speed + ramp_step;
-    }
-    else if (drive_speed < last_drive_speed) {
-      drive_speed = last_drive_speed - ramp_step;
-    }
-    last_drive_speed = drive_speed;
-    
+ 
     //MOVING FORWARD
     if (drive_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is positive)
       //If turning LEFT:
@@ -292,8 +284,8 @@ void loop()
       #ifdef DRIVE_MOTORS
       Motor_Left->setSpeed(motor_speed_left);
       Motor_Right->setSpeed(motor_speed_right);
-      Motor_Left->run(FORWARD);
-      Motor_Right->run(FORWARD);
+      Motor_Left->run(BACKWARD);
+      Motor_Right->run(BACKWARD);
       #endif
     }
     //MOVING BACKWARD
@@ -317,8 +309,8 @@ void loop()
       #ifdef DRIVE_MOTORS
       Motor_Left->setSpeed(-motor_speed_left);    //IMPORTANT: Multiply motor speeds by -1 to convert to a positive value since direction is controlled by the "run" command.
       Motor_Right->setSpeed(-motor_speed_right);
-      Motor_Left->run(BACKWARD);
-      Motor_Right->run(BACKWARD);
+      Motor_Left->run(FORWARD);
+      Motor_Right->run(FORWARD);
       #endif
     }
     
@@ -343,6 +335,7 @@ void loop()
   else {
     motor_speed_left = 0;
     motor_speed_right = 0;
+    last_drive_speed = 0;
     #ifdef DRIVE_MOTORS
     Motor_Left->setSpeed(0);
     Motor_Right->setSpeed(0);
@@ -354,35 +347,39 @@ void loop()
   //RIGHT joystick position
   joystick_arm = 128 - ps2.readButton(PS2_JOYSTICK_RIGHT_Y_AXIS);  //Get joystick difference from center position (UP is positive)
 
-  if (joystick_arm > 10 || joystick_arm < -10) {       //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD.
-    arm_speed = map(joystick_arm, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (center to extremity)
-    motor_speed_arm = arm_speed;
-
-    #ifdef ARM_MOTOR
-    if (arm_speed > 0) {
-      Motor_Arm->setSpeed(motor_speed_arm);
-      Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm when joystick is "pushed forward"
+  if (joystick_arm > 15 || joystick_arm < -15) {       //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD.
+    delay(10);
+    joystick_arm = 128 - ps2.readButton(PS2_JOYSTICK_RIGHT_Y_AXIS);  //Double check after a short delay to prevent false activation
+    if (joystick_arm > 15 || joystick_arm < -15) {
+      arm_speed = map(joystick_arm, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (center to extremity)
+      motor_speed_arm = arm_speed;
+  
+      #ifdef ARM_MOTOR
+      if (arm_speed > 0) {
+        Motor_Arm->setSpeed(motor_speed_arm);
+        Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm when joystick is "pushed forward"
+      }
+      else if (arm_speed < 0) {   //Check if negative..
+        Motor_Arm->setSpeed(-motor_speed_arm);    //Always pass "setSpeed" a positive value. Multiply the passed argument by -1 to make the passed value positive.
+        Motor_Arm->run(FORWARD);   //Run motor in direction to LIFT arm when joystick is "pulled back"
+      }
+      #endif
+  
+      #ifdef DEBUG_ARM
+      Serial.print ("joystick arm: ");
+      Serial.print (joystick_arm);
+      Serial.print ("\t");
+      Serial.print ("arm_speed: ");
+      Serial.print (arm_speed);
+      Serial.print ("\t");
+      Serial.print("Arm Pot: ");
+      Serial.println (analogRead(arm_pot));
+      #endif
     }
-    else if (arm_speed < 0) {   //Check if negative..
-      Motor_Arm->setSpeed(-motor_speed_arm);    //Always pass "setSpeed" a positive value. Multiply the passed argument by -1 to make the passed value positive.
-      Motor_Arm->run(FORWARD);   //Run motor in direction to LIFT arm when joystick is "pulled back"
-    }
-    #endif
-
-    #ifdef DEBUG_ARM
-    Serial.print ("joystick arm: ");
-    Serial.print (joystick_arm);
-    Serial.print ("\t");
-    Serial.print ("arm_speed: ");
-    Serial.print (arm_speed);
-    Serial.print ("\t");
-    Serial.print("Arm Pot: ");
-    Serial.println (analogRead(arm_pot));
-    #endif
   }
   else {
-    motor_speed_arm = 0;
-    arm_speed = 0;
+    motor_speed_arm = 0.0;
+    arm_speed = 0.0;
     
     #ifdef ARM_MOTOR
     Motor_Arm->setSpeed(0);
