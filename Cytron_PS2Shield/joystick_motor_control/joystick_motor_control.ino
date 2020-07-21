@@ -34,9 +34,10 @@
 
 #define DRIVE_MOTORS
 #define ARM_MOTOR
-#define DEBUG_DRIVE
+//#define DEBUG_DRIVE
+#define DEBUG_ENCODER
 #define DEBUG_ARM
-//#define DEBUG_DPAD
+#define DEBUG_DPAD
  
 //Create PS2Shield object
 Cytron_PS2Shield ps2(8, 9); // SoftwareSerial: assign Rx and Tx pin
@@ -95,7 +96,7 @@ void ISR_encoder2() {
 //TimerOne ISR
 void ISR_timerone() {
   Timer1.detachInterrupt();   //Stop Timer1 to allow time for serial print out
-  #ifdef DEBUG_DPAD
+  #ifdef DEBUG_ENCODER
   Serial.print("encoder1: ");
   Serial.print(encoder1);
   Serial.print("\t");
@@ -134,7 +135,7 @@ void setup()
 
   attachInterrupt(digitalPinToInterrupt(MOTOR1), ISR_encoder1, RISING);   //Attach interrupt service routines to hardware interrupt pins and set trigger mode.
   attachInterrupt(digitalPinToInterrupt(MOTOR2), ISR_encoder2, RISING);
-  Timer1.initialize(1000000);   //Timer1 accepts parameter in microseconds. Set to one million for 1 second.
+  Timer1.initialize(200000);   //Timer1 accepts parameter in microseconds. Set to one million for 1 second.
   Timer1.attachInterrupt(ISR_timerone);   //Enable the timer
 }
 
@@ -148,23 +149,62 @@ void loop()
   if(ps2.readButton(PS2_UP) == 0)   // 0 = pressed, 1 = released
   {
     delay(10);
-    if(ps2.readButton(PS2_UP) == 0 && commandState == 0) {
+    if(ps2.readButton(PS2_UP) == 0 && commandState == 0) { //Double check button press after delay
       Serial.println("UP Pressed!");
       encoder1 = 0;               //Reset encoders
       encoder2 = 0;
-      commandState = 1;
+      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
       
       #ifdef DRIVE_MOTORS
+      //Start motors
       Motor_Left->run(BACKWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
       Motor_Right->run(BACKWARD);
       int i=0;
-      for (i=0; i<200; i++) {
+      for (i=0; i<255; i++) {   //Ramp up power to max speed
         Motor_Left->setSpeed(i);
         Motor_Right->setSpeed(i);  
         delay(10);
       }
-      Motor_Right->setSpeed(i+15);    //Adjust motor power to account for mechanically induced drift
-      delay(5000);
+      Motor_Right->setSpeed(240);   //Adjust (reduce) Right Wheel motor power to account for robot drift to the left.
+      delay(5000);    //Drive for 5 seconds
+      Motor_Left->setSpeed(0);
+      Motor_Right->setSpeed(0);
+      Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(RELEASE);
+      #endif
+      
+      commandState = 0;
+    }
+  }
+
+  //RIGHT
+  if(ps2.readButton(PS2_RIGHT) == 0)   // 0 = pressed, 1 = released
+  {
+    delay(10);
+    if(ps2.readButton(PS2_RIGHT) == 0 && commandState == 0) { //Double check button press after delay
+      Serial.println("UP Pressed!");
+      encoder1 = 0;               //Reset encoders
+      encoder2 = 0;
+      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
+      
+      #ifdef DRIVE_MOTORS
+      //Start motors
+      Motor_Left->run(BACKWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(FORWARD);
+      int i=0;
+      for (i=0; i<255; i++) {   //Ramp up power to max speed
+        Motor_Left->setSpeed(i);
+        Motor_Right->setSpeed(i);  
+        delay(10);
+      }
+      Motor_Right->setSpeed(240);   //Adjust (reduce) Right Wheel motor power to account for robot drift to the left.
+      while(encoder1 < 80) {   //measure using the wheel on the outside of the turn (e.g. Left Wheel for righthand turns)
+        //wait for encoder-based turn to complete 
+        //Value of 80 is good for a 90 degree encoder-based turn
+        //Value of 170 is good for a 180 degree encoder-based turn
+      }
+//      delay(500);    //Wait to complete 90 degree time-based turn
+//      delay(2750);    //Wait to complete 180 degree time-based turn
       Motor_Left->setSpeed(0);
       Motor_Right->setSpeed(0);
       Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
@@ -186,14 +226,14 @@ void loop()
     if(ps2.readButton(PS2_RIGHT_2) == 0 && stepperState == 0) { //double check buttonstate after short delay to prevent false trigger
       //Rotate CW
       stepperState = 1;
-      stepsRequired = STEPS_PER_OUT_REV/5;    //Rotate one-fifth of a revolution. Change divisor value to adjust amount of rotation.
+      stepsRequired = STEPS_PER_OUT_REV/2;    //Rotate a fraction of a revolution. Change divisor value to adjust amount of rotation. Change sign to adjust direction of rotation.
       stepperMotor.setSpeed(700);
       stepperMotor.step(stepsRequired);
     }
   }
   else if (stepperState == 1) {
     //Rotate CCW
-    stepsRequired = - STEPS_PER_OUT_REV/5;
+    stepsRequired = -STEPS_PER_OUT_REV/2;
     stepperMotor.setSpeed(700);
     stepperMotor.step(stepsRequired);
     stepperState = 0;
