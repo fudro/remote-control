@@ -35,7 +35,7 @@
 #define DRIVE_MOTORS
 #define ARM_MOTOR
 //#define DEBUG_DRIVE
-#define DEBUG_ENCODER
+//#define DEBUG_ENCODER
 #define DEBUG_ARM
 #define DEBUG_DPAD
  
@@ -54,9 +54,9 @@ int joystick_steer = 0;       //left joystick position in X axis (LEFT and RIGHT
 int last_drive_speed = 0;  //store last value for comparison - used to prevent huge jumps in motor current due to rapid joystick changes which can overload buck converter. 
 int ramp_step = 7;            //maximum ammount the motor speed can change (up or down) per loop iteration
 int joystick_arm = 0;         //right joystick position in Y axis (UP and DOWN). TODO:Direction is inverted - pull back to lift UP
-int arm_scoop = 75;             //lowest mechanically safe position for the arm (may vary depending on current attachment
-int arm_extend = 250;         //best position to extend arm enough for clean dump of object
-int arm_up = 400;            //highest mechanically safe position for the arm (may vary depending on current attachment
+int arm_scoop = 200;             //arm position for scooping up objects
+int arm_extend = 250;         //best position to extend arm enough for clean release of object
+int arm_up = 300;            //highest mechanically safe position for the arm (may vary depending on current attachment)
 float drive_speed = 0.0;     //base speed component in the FORWARD/BACKWARD direction - derived from "joystick_drive"
 float turn_speed = 0.0;      //speed adjustment value for left and right wheels while turning
 float arm_speed = 0.0;        //speed of arm motor
@@ -151,11 +151,11 @@ void loop()
   {
     delay(10);
     if(ps2.readButton(PS2_UP) == 0 && commandState == 0) { //Double check button press after delay
+      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
       Serial.println("UP Pressed!");
+      //Move Forward
       encoder1 = 0;               //Reset encoders
       encoder2 = 0;
-      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
-      
       #ifdef DRIVE_MOTORS
       //Start motors
       Motor_Left->run(BACKWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
@@ -167,13 +167,12 @@ void loop()
         delay(10);
       }
       Motor_Right->setSpeed(240);   //Adjust (reduce) Right Wheel motor power to account for robot drift to the left.
-      delay(5000);    //Drive for 5 seconds
+      delay(5000);    //Drive for 5 seconds. As an alternative, encoder-based movement can be used.
       Motor_Left->setSpeed(0);
       Motor_Right->setSpeed(0);
       Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
       Motor_Right->run(RELEASE);
       #endif
-      
       commandState = 0;
     }
   }
@@ -183,11 +182,11 @@ void loop()
   {
     delay(10);
     if(ps2.readButton(PS2_RIGHT) == 0 && commandState == 0) { //Double check button press after delay
+      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
       Serial.println("UP Pressed!");
+      //Turn Right
       encoder1 = 0;               //Reset encoders
       encoder2 = 0;
-      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
-      
       #ifdef DRIVE_MOTORS
       //Start motors
       Motor_Left->run(BACKWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
@@ -204,6 +203,7 @@ void loop()
         //Value of 80 is good for a 90 degree encoder-based turn
         //Value of 170 is good for a 180 degree encoder-based turn
       }
+      //As an alternative, time-based movement can be used:
 //      delay(500);    //Wait to complete 90 degree time-based turn
 //      delay(2750);    //Wait to complete 180 degree time-based turn
       Motor_Left->setSpeed(0);
@@ -211,7 +211,6 @@ void loop()
       Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
       Motor_Right->run(RELEASE);
       #endif
-      
       commandState = 0;
     }
   }
@@ -221,11 +220,11 @@ void loop()
   {
     delay(10);
     if(ps2.readButton(PS2_DOWN) == 0 && commandState == 0) { //Double check button press after delay
+      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
       Serial.println("DOWN Pressed!");
+      //Move Backward
       encoder1 = 0;               //Reset encoders
       encoder2 = 0;
-      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
-      
       #ifdef DRIVE_MOTORS
       //Start motors
       Motor_Left->run(FORWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
@@ -237,13 +236,12 @@ void loop()
         delay(10);
       }
       Motor_Right->setSpeed(240);   //Adjust (reduce) Right Wheel motor power to account for robot drift to the left.
-      delay(5000);    //Drive for 5 seconds
+      delay(5000);    //Drive for 5 seconds. As an alternative, encoder-based movement can be used.
       Motor_Left->setSpeed(0);
       Motor_Right->setSpeed(0);
       Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
       Motor_Right->run(RELEASE);
       #endif
-      
       commandState = 0;
     }
   }
@@ -253,11 +251,11 @@ void loop()
   {
     delay(10);
     if(ps2.readButton(PS2_LEFT) == 0 && commandState == 0) { //Double check button press after delay
+      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
       Serial.println("LEFT Pressed!");
+      //Turn Left
       encoder1 = 0;               //Reset encoders
       encoder2 = 0;
-      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
-      
       #ifdef DRIVE_MOTORS
       //Start motors
       Motor_Left->run(FORWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
@@ -274,6 +272,7 @@ void loop()
         //Value of 80 is good for a 90 degree encoder-based turn
         //Value of 170 is good for a 180 degree encoder-based turn
       }
+      //As an alternative, time-based movement can be used:
 //      delay(500);    //Wait to complete 90 degree time-based turn
 //      delay(2750);    //Wait to complete 180 degree time-based turn
       Motor_Left->setSpeed(0);
@@ -281,7 +280,6 @@ void loop()
       Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
       Motor_Right->run(RELEASE);
       #endif
-      
       commandState = 0;
     }
   }
@@ -370,16 +368,21 @@ void loop()
   {
     delay(10);
     if(ps2.readButton(PS2_TRIANGLE) == 0) { //double check button to prevent false trigger
+      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
       Serial.println("Picking Up!");
+      
       //Pump Air
-      digitalWrite(10, LOW);    //Close both relays (+,-) required to activate pump
+      Serial.println("Pumping Air!");
+      digitalWrite(10, LOW);    //Activate both relays required to activate pump
       digitalWrite(11, LOW);
-      delay(5000);   //Wait for pressure to build up
+      delay(1000);              //Wait for pressure to build up
+      digitalWrite(10, HIGH);   //Release both relays
+      digitalWrite(11, HIGH);
       
       //Move Forward
+      Serial.println("Moving Forward!");
       encoder1 = 0;       //Reset encoders to track movement
       encoder2 = 0;
-      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
       //Start motors
       #ifdef DRIVE_MOTORS
       Motor_Left->run(BACKWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
@@ -391,7 +394,7 @@ void loop()
         delay(10);
       }
       Motor_Right->setSpeed(240);   //Adjust (reduce) Right Wheel motor power to account for robot drift to the left.
-      delay(500);    //Wait for robot to drive forward to position scoop over object
+      delay(50);    //Wait for robot to drive forward to position scoop over object. As an alternative, encoder-based movement can be used.
       Motor_Left->setSpeed(0);
       Motor_Right->setSpeed(0);
       Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
@@ -399,15 +402,27 @@ void loop()
       #endif
       
       //Lower Arm
+      Serial.println("Lowering Arm!");
       #ifdef ARM_MOTOR
-      Motor_Arm->setSpeed(255);
-      if(arm_pot < arm_scoop) {
-        while(arm_pot < arm_scoop) {    //if arm is below midpoint...
+      Motor_Arm->setSpeed(127);
+      #ifdef DEBUG_ARM
+      Serial.print ("arm_speed: ");
+      Serial.print (arm_speed);
+      Serial.print ("\t");
+      Serial.print("Arm Pot: ");
+      Serial.println (analogRead(arm_pot));
+      #endif
+      if(analogRead(arm_pot) < arm_scoop) {
+        while(analogRead(arm_pot) < arm_scoop) {    //if arm is below midpoint...
+          Serial.print("Arm Pot: ");
+          Serial.println (analogRead(arm_pot));
           Motor_Arm->run(FORWARD);   //Run motor in direction to RAISE arm to midpoint
         }
       }
-      else if(arm_pot > arm_scoop) {    //if arm is above midpoint...
-        while(arm_pot > arm_scoop) {
+      else if(analogRead(arm_pot) > arm_scoop) {    //if arm is above midpoint...
+        while(analogRead(arm_pot) > arm_scoop) {
+          Serial.print("Arm Pot: ");
+          Serial.println (analogRead(arm_pot));
           Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm to midpoint
         }
       }
@@ -416,6 +431,7 @@ void loop()
       #endif
 
       //Release Valve
+      Serial.println("Releasing Valve!");
       digitalWrite(12, LOW);
       digitalWrite(13, LOW);
       delay(500);
@@ -423,15 +439,16 @@ void loop()
       digitalWrite(13, HIGH);
 
       //Raise Arm
+      Serial.println("Raising Arm!");
       #ifdef ARM_MOTOR
       Motor_Arm->setSpeed(255);
-      if(arm_pot < arm_up) {
-        while(arm_pot < arm_up) {    //if arm is below midpoint...
+      if(analogRead(arm_pot) < arm_up) {
+        while(analogRead(arm_pot) < arm_up) {    //if arm is below midpoint...
           Motor_Arm->run(FORWARD);   //Run motor in direction to RAISE arm to midpoint
         }
       }
-      else if(arm_pot > arm_up) {    //if arm is above midpoint...
-        while(arm_pot > arm_up) {
+      else if(analogRead(arm_pot) > arm_up) {    //if arm is above midpoint...
+        while(analogRead(arm_pot) > arm_up) {
           Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm to midpoint
         }
       }
@@ -440,6 +457,7 @@ void loop()
       #endif
       
       //Move Backward
+      Serial.println("Moving Backward!");
       encoder1 = 0;       //Reset encoders to track movement
       encoder2 = 0;
       //Start motors
@@ -453,13 +471,12 @@ void loop()
         delay(10);
       }
       Motor_Right->setSpeed(240);   //Adjust (reduce) Right Wheel motor power to account for robot drift to the left.
-      delay(500);    //Wait for robot to drive backward to view if object was picked up
+      delay(100);    //Wait for robot to drive backward to view if object was picked up
       Motor_Left->setSpeed(0);
       Motor_Right->setSpeed(0);
       Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
       Motor_Right->run(RELEASE);
       #endif
-      
       commandState = 0;   //Reset flag
     }
   }
@@ -469,6 +486,7 @@ void loop()
   {
     delay(10);
     if(ps2.readButton(PS2_CIRCLE) == 0) { //double check button to prevent false trigger
+      Serial.println("Pumping Air! (Manual)");
       digitalWrite(10, LOW);
       digitalWrite(11, LOW);
     }
@@ -484,11 +502,13 @@ void loop()
   {
     delay(10);
     if(ps2.readButton(PS2_CROSS) == 0) { //double check button to prevent false trigger
+      Serial.println("Dumping Scoop!");
+      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
       
       //Move Forward
+      Serial.println("Moving Forward!");
       encoder1 = 0;       //Reset encoders to track movement
       encoder2 = 0;
-      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
       //Start motors
       #ifdef DRIVE_MOTORS
       Motor_Left->run(BACKWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
@@ -500,23 +520,24 @@ void loop()
         delay(10);
       }
       Motor_Right->setSpeed(240);   //Adjust (reduce) Right Wheel motor power to account for robot drift to the left.
-      delay(500);    //Wait for robot to drive forward to position scoop over object
+      delay(100);    //Wait for robot to drive forward to position scoop over object. As an alternative, encoder-based movement can be used.
       Motor_Left->setSpeed(0);
       Motor_Right->setSpeed(0);
       Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
       Motor_Right->run(RELEASE);
       #endif
 
-      //Lower Arm
+      //Extend Arm (Lower Slightly)
+      Serial.println("Extending Arm!");
       #ifdef ARM_MOTOR
       Motor_Arm->setSpeed(255);
-      if(arm_pot < arm_extend) {
-        while(arm_pot < arm_extend) {    //if arm is below midpoint...
+      if(analogRead(arm_pot) < arm_extend) {
+        while(analogRead(arm_pot) < arm_extend) {    //if arm is below desired position...
           Motor_Arm->run(FORWARD);   //Run motor in direction to RAISE arm to midpoint
         }
       }
-      else if(arm_pot > arm_extend) {    //if arm is above midpoint...
-        while(arm_pot > arm_extend) {
+      else if(analogRead(arm_pot) > arm_extend) {    //if arm is above desired position...
+        while(analogRead(arm_pot) > arm_extend) {
           Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm to midpoint
         }
       }
@@ -525,6 +546,7 @@ void loop()
       #endif
 
       //Pump Air
+      Serial.println("Pumping Air!");
       digitalWrite(10, LOW);
       digitalWrite(11, LOW);
       delay(3000);    //Wait for enough pressure to open scoop
@@ -532,15 +554,16 @@ void loop()
       digitalWrite(11, HIGH);
 
       //Raise Arm
+      Serial.println("Raising Arm!");
       #ifdef ARM_MOTOR
       Motor_Arm->setSpeed(255);
-      if(arm_pot < arm_up) {
-        while(arm_pot < arm_up) {    //if arm is below midpoint...
+      if(analogRead(arm_pot) < arm_up) {
+        while(analogRead(arm_pot) < arm_up) {    //if arm is below midpoint...
           Motor_Arm->run(FORWARD);   //Run motor in direction to RAISE arm to midpoint
         }
       }
-      else if(arm_pot > arm_up) {    //if arm is above midpoint...
-        while(arm_pot > arm_up) {
+      else if(analogRead(arm_pot) > arm_up) {    //if arm is above midpoint...
+        while(analogRead(arm_pot) > arm_up) {
           Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm to midpoint
         }
       }
@@ -549,6 +572,7 @@ void loop()
       #endif
       
       //Move Backward
+      Serial.println("Moving Backward!");
       encoder1 = 0;       //Reset encoders to track movement
       encoder2 = 0;
       //Start motors
@@ -562,13 +586,12 @@ void loop()
         delay(10);
       }
       Motor_Right->setSpeed(240);   //Adjust (reduce) Right Wheel motor power to account for robot drift to the left.
-      delay(500);    //Wait for robot to drive backward to clear dumped object
+      delay(100);    //Wait for robot to drive backward to clear dumped object
       Motor_Left->setSpeed(0);
       Motor_Right->setSpeed(0);
       Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
       Motor_Right->run(RELEASE);
       #endif
-      
       commandState = 0;   //Reset flag
     }
   }
@@ -578,6 +601,7 @@ void loop()
   {
     delay(10);
     if(ps2.readButton(PS2_SQUARE) == 0) { //double check button to prevent false trigger
+      Serial.println("Releasing Valve! (Manual)");
       digitalWrite(12, LOW);
       digitalWrite(13, LOW);
     }
