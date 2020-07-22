@@ -54,8 +54,9 @@ int joystick_steer = 0;       //left joystick position in X axis (LEFT and RIGHT
 int last_drive_speed = 0;  //store last value for comparison - used to prevent huge jumps in motor current due to rapid joystick changes which can overload buck converter. 
 int ramp_step = 7;            //maximum ammount the motor speed can change (up or down) per loop iteration
 int joystick_arm = 0;         //right joystick position in Y axis (UP and DOWN). TODO:Direction is inverted - pull back to lift UP
-int arm_min = 75;             //lowest mechanically safe position for the arm (may vary depending on current attachment
-int arm_max = 300;            //highest mechanically safe position for the arm (may vary depending on current attachment
+int arm_scoop = 75;             //lowest mechanically safe position for the arm (may vary depending on current attachment
+int arm_extend = 250;         //best position to extend arm enough for clean dump of object
+int arm_up = 400;            //highest mechanically safe position for the arm (may vary depending on current attachment
 float drive_speed = 0.0;     //base speed component in the FORWARD/BACKWARD direction - derived from "joystick_drive"
 float turn_speed = 0.0;      //speed adjustment value for left and right wheels while turning
 float arm_speed = 0.0;        //speed of arm motor
@@ -214,6 +215,76 @@ void loop()
       commandState = 0;
     }
   }
+
+  //DOWN
+  if(ps2.readButton(PS2_DOWN) == 0)   // 0 = pressed, 1 = released
+  {
+    delay(10);
+    if(ps2.readButton(PS2_DOWN) == 0 && commandState == 0) { //Double check button press after delay
+      Serial.println("DOWN Pressed!");
+      encoder1 = 0;               //Reset encoders
+      encoder2 = 0;
+      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
+      
+      #ifdef DRIVE_MOTORS
+      //Start motors
+      Motor_Left->run(FORWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(FORWARD);
+      int i=0;
+      for (i=0; i<255; i++) {   //Ramp up power to max speed
+        Motor_Left->setSpeed(i);
+        Motor_Right->setSpeed(i);  
+        delay(10);
+      }
+      Motor_Right->setSpeed(240);   //Adjust (reduce) Right Wheel motor power to account for robot drift to the left.
+      delay(5000);    //Drive for 5 seconds
+      Motor_Left->setSpeed(0);
+      Motor_Right->setSpeed(0);
+      Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(RELEASE);
+      #endif
+      
+      commandState = 0;
+    }
+  }
+
+  //LEFT
+  if(ps2.readButton(PS2_LEFT) == 0)   // 0 = pressed, 1 = released
+  {
+    delay(10);
+    if(ps2.readButton(PS2_LEFT) == 0 && commandState == 0) { //Double check button press after delay
+      Serial.println("LEFT Pressed!");
+      encoder1 = 0;               //Reset encoders
+      encoder2 = 0;
+      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
+      
+      #ifdef DRIVE_MOTORS
+      //Start motors
+      Motor_Left->run(FORWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(BACKWARD);
+      int i=0;
+      for (i=0; i<255; i++) {   //Ramp up power to max speed
+        Motor_Left->setSpeed(i);
+        Motor_Right->setSpeed(i);  
+        delay(10);
+      }
+      Motor_Right->setSpeed(240);   //Adjust (reduce) Right Wheel motor power to account for robot drift to the left.
+      while(encoder2 < 80) {   //measure using the wheel on the outside of the turn (e.g. Left Wheel for righthand turns)
+        //wait for encoder-based turn to complete 
+        //Value of 80 is good for a 90 degree encoder-based turn
+        //Value of 170 is good for a 180 degree encoder-based turn
+      }
+//      delay(500);    //Wait to complete 90 degree time-based turn
+//      delay(2750);    //Wait to complete 180 degree time-based turn
+      Motor_Left->setSpeed(0);
+      Motor_Right->setSpeed(0);
+      Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(RELEASE);
+      #endif
+      
+      commandState = 0;
+    }
+  }
   #endif
   
   /***************************
@@ -242,52 +313,278 @@ void loop()
   /****************************
       BUTTONS
   ****************************/
-  //Triangle
+//  //Triangle
+//  if(ps2.readButton(PS2_TRIANGLE) == 0) // 0 = pressed, 1 = released
+//  {
+//    delay(10);
+//    if(ps2.readButton(PS2_TRIANGLE) == 0) { //double check button to prevent false trigger
+//      digitalWrite(10, LOW);
+//    }
+//  }
+//  else
+//  {
+//    digitalWrite(10, HIGH);
+//  }
+//  
+//  //Circle
+//  if(ps2.readButton(PS2_CIRCLE) == 0) // 0 = pressed, 1 = released
+//  {
+//    delay(10);
+//    if(ps2.readButton(PS2_CIRCLE) == 0) { //double check button to prevent false trigger
+//      digitalWrite(11, LOW);
+//    }
+//  }
+//  else
+//  {
+//    digitalWrite(11, HIGH);
+//  }
+//  
+//  //Cross
+//  if(ps2.readButton(PS2_CROSS) == 0) // 0 = pressed, 1 = released
+//  {
+//    delay(10);
+//    if(ps2.readButton(PS2_CROSS) == 0) { //double check button to prevent false trigger
+//      digitalWrite(12, LOW);
+//    }
+//  }
+//  else
+//  {
+//    digitalWrite(12, HIGH);
+//  }
+//  
+//  //Square
+//  if(ps2.readButton(PS2_SQUARE) == 0) // 0 = pressed, 1 = released
+//  {
+//    delay(10);
+//    if(ps2.readButton(PS2_SQUARE) == 0) { //double check button to prevent false trigger
+//      digitalWrite(13, LOW);
+//    }
+//  }
+//  else
+//  {
+//    digitalWrite(13, HIGH);
+//  }
+
+  //TRIANGLE - Pick Up
   if(ps2.readButton(PS2_TRIANGLE) == 0) // 0 = pressed, 1 = released
   {
     delay(10);
     if(ps2.readButton(PS2_TRIANGLE) == 0) { //double check button to prevent false trigger
-      digitalWrite(10, LOW);
+      Serial.println("Picking Up!");
+      //Pump Air
+      digitalWrite(10, LOW);    //Close both relays (+,-) required to activate pump
+      digitalWrite(11, LOW);
+      delay(5000);   //Wait for pressure to build up
+      
+      //Move Forward
+      encoder1 = 0;       //Reset encoders to track movement
+      encoder2 = 0;
+      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
+      //Start motors
+      #ifdef DRIVE_MOTORS
+      Motor_Left->run(BACKWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(BACKWARD);
+      int i=0;
+      for (i=0; i<255; i++) {   //Ramp up power to max speed
+        Motor_Left->setSpeed(i);
+        Motor_Right->setSpeed(i);  
+        delay(10);
+      }
+      Motor_Right->setSpeed(240);   //Adjust (reduce) Right Wheel motor power to account for robot drift to the left.
+      delay(500);    //Wait for robot to drive forward to position scoop over object
+      Motor_Left->setSpeed(0);
+      Motor_Right->setSpeed(0);
+      Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(RELEASE);
+      #endif
+      
+      //Lower Arm
+      #ifdef ARM_MOTOR
+      Motor_Arm->setSpeed(255);
+      if(arm_pot < arm_scoop) {
+        while(arm_pot < arm_scoop) {    //if arm is below midpoint...
+          Motor_Arm->run(FORWARD);   //Run motor in direction to RAISE arm to midpoint
+        }
+      }
+      else if(arm_pot > arm_scoop) {    //if arm is above midpoint...
+        while(arm_pot > arm_scoop) {
+          Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm to midpoint
+        }
+      }
+      Motor_Arm->setSpeed(0);   //Stop arm at scooping position
+      Motor_Arm->run(RELEASE);
+      #endif
+
+      //Release Valve
+      digitalWrite(12, LOW);
+      digitalWrite(13, LOW);
+      delay(500);
+      digitalWrite(12, HIGH);
+      digitalWrite(13, HIGH);
+
+      //Raise Arm
+      #ifdef ARM_MOTOR
+      Motor_Arm->setSpeed(255);
+      if(arm_pot < arm_up) {
+        while(arm_pot < arm_up) {    //if arm is below midpoint...
+          Motor_Arm->run(FORWARD);   //Run motor in direction to RAISE arm to midpoint
+        }
+      }
+      else if(arm_pot > arm_up) {    //if arm is above midpoint...
+        while(arm_pot > arm_up) {
+          Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm to midpoint
+        }
+      }
+      Motor_Arm->setSpeed(0);   //Stop arm at scooping position
+      Motor_Arm->run(RELEASE);
+      #endif
+      
+      //Move Backward
+      encoder1 = 0;       //Reset encoders to track movement
+      encoder2 = 0;
+      //Start motors
+      #ifdef DRIVE_MOTORS
+      Motor_Left->run(FORWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(FORWARD);
+      i=0;    //Reuse previously declared iterator variable and reset it.
+      for (i=0; i<255; i++) {   //Ramp up power to max speed
+        Motor_Left->setSpeed(i);
+        Motor_Right->setSpeed(i);  
+        delay(10);
+      }
+      Motor_Right->setSpeed(240);   //Adjust (reduce) Right Wheel motor power to account for robot drift to the left.
+      delay(500);    //Wait for robot to drive backward to view if object was picked up
+      Motor_Left->setSpeed(0);
+      Motor_Right->setSpeed(0);
+      Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(RELEASE);
+      #endif
+      
+      commandState = 0;   //Reset flag
     }
   }
-  else
-  {
-    digitalWrite(10, HIGH);
-  }
-  //Circle
+  
+  //CIRCLE - Pump Air
   if(ps2.readButton(PS2_CIRCLE) == 0) // 0 = pressed, 1 = released
   {
     delay(10);
     if(ps2.readButton(PS2_CIRCLE) == 0) { //double check button to prevent false trigger
+      digitalWrite(10, LOW);
       digitalWrite(11, LOW);
     }
   }
   else
   {
+    digitalWrite(10, HIGH);
     digitalWrite(11, HIGH);
   }
-  //Cross
+  
+  //CROSS - Dump Object
   if(ps2.readButton(PS2_CROSS) == 0) // 0 = pressed, 1 = released
   {
     delay(10);
     if(ps2.readButton(PS2_CROSS) == 0) { //double check button to prevent false trigger
-      digitalWrite(12, LOW);
+      
+      //Move Forward
+      encoder1 = 0;       //Reset encoders to track movement
+      encoder2 = 0;
+      commandState = 1;   //Set flag to prevent repeat activation while movement is executing.
+      //Start motors
+      #ifdef DRIVE_MOTORS
+      Motor_Left->run(BACKWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(BACKWARD);
+      int i=0;
+      for (i=0; i<255; i++) {   //Ramp up power to max speed
+        Motor_Left->setSpeed(i);
+        Motor_Right->setSpeed(i);  
+        delay(10);
+      }
+      Motor_Right->setSpeed(240);   //Adjust (reduce) Right Wheel motor power to account for robot drift to the left.
+      delay(500);    //Wait for robot to drive forward to position scoop over object
+      Motor_Left->setSpeed(0);
+      Motor_Right->setSpeed(0);
+      Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(RELEASE);
+      #endif
+
+      //Lower Arm
+      #ifdef ARM_MOTOR
+      Motor_Arm->setSpeed(255);
+      if(arm_pot < arm_extend) {
+        while(arm_pot < arm_extend) {    //if arm is below midpoint...
+          Motor_Arm->run(FORWARD);   //Run motor in direction to RAISE arm to midpoint
+        }
+      }
+      else if(arm_pot > arm_extend) {    //if arm is above midpoint...
+        while(arm_pot > arm_extend) {
+          Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm to midpoint
+        }
+      }
+      Motor_Arm->setSpeed(0);   //Stop arm at scooping position
+      Motor_Arm->run(RELEASE);
+      #endif
+
+      //Pump Air
+      digitalWrite(10, LOW);
+      digitalWrite(11, LOW);
+      delay(3000);    //Wait for enough pressure to open scoop
+      digitalWrite(10, HIGH);
+      digitalWrite(11, HIGH);
+
+      //Raise Arm
+      #ifdef ARM_MOTOR
+      Motor_Arm->setSpeed(255);
+      if(arm_pot < arm_up) {
+        while(arm_pot < arm_up) {    //if arm is below midpoint...
+          Motor_Arm->run(FORWARD);   //Run motor in direction to RAISE arm to midpoint
+        }
+      }
+      else if(arm_pot > arm_up) {    //if arm is above midpoint...
+        while(arm_pot > arm_up) {
+          Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm to midpoint
+        }
+      }
+      Motor_Arm->setSpeed(0);   //Stop arm at scooping position
+      Motor_Arm->run(RELEASE);
+      #endif
+      
+      //Move Backward
+      encoder1 = 0;       //Reset encoders to track movement
+      encoder2 = 0;
+      //Start motors
+      #ifdef DRIVE_MOTORS
+      Motor_Left->run(FORWARD);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(FORWARD);
+      i=0;    //Reuse previously declared iterator variable and reset it
+      for (i=0; i<255; i++) {   //Ramp up power to max speed
+        Motor_Left->setSpeed(i);
+        Motor_Right->setSpeed(i);  
+        delay(10);
+      }
+      Motor_Right->setSpeed(240);   //Adjust (reduce) Right Wheel motor power to account for robot drift to the left.
+      delay(500);    //Wait for robot to drive backward to clear dumped object
+      Motor_Left->setSpeed(0);
+      Motor_Right->setSpeed(0);
+      Motor_Left->run(RELEASE);   //IMPORTANT: FORWARD and BACKWARD are intentionally reversed due to reverse directionality caused by the gearing of the robot.
+      Motor_Right->run(RELEASE);
+      #endif
+      
+      commandState = 0;   //Reset flag
     }
   }
-  else
-  {
-    digitalWrite(12, HIGH);
-  }
-  //Square
+  
+  //SQUARE - Release Valve
   if(ps2.readButton(PS2_SQUARE) == 0) // 0 = pressed, 1 = released
   {
     delay(10);
     if(ps2.readButton(PS2_SQUARE) == 0) { //double check button to prevent false trigger
+      digitalWrite(12, LOW);
       digitalWrite(13, LOW);
     }
   }
   else
   {
+    digitalWrite(12, HIGH);
     digitalWrite(13, HIGH);
   }
 
