@@ -1,13 +1,13 @@
 /*
- * This program accepts input from a game controller to control a robot.
+ * This program accepts input from a wireless game controller to control a robot.
  * 
  * HARDWARE:
  * Arduino Uno R3 Clone (ATMega328P)
  * Sony PS2 Wireless Force 2 Controller
  * Cytron PS2 Shield: http://www.cytron.com.my/p-shield-ps2
  * Adafruit Motor Shield V2.3: https://learn.adafruit.com/adafruit-motor-shield-v2-for-arduino/overview
- * Drive Motors: Pololu High Power 6V DC Motor 20.4:1 Gear Ratio
- * Stepper Motor: 28BYJ-48 unipolar
+ * Drive Motors: Vex 393 DC Motor
+ * Stepper Motor (weed trimmer switch): 28BYJ-48 unipolar
  * 
  * CONTROL FEATURES:
  * WORKING:
@@ -32,12 +32,15 @@
 #include <Stepper.h>
 #include "TimerOne.h"
 
+//Activate Motors
 #define DRIVE_MOTORS
 #define ARM_MOTOR
+
+//Setup Debug Output
 //#define DEBUG_DRIVE
 //#define DEBUG_ENCODER
 #define DEBUG_ARM
-#define DEBUG_DPAD
+//#define DEBUG_DPAD
  
 //Create PS2Shield object
 Cytron_PS2Shield ps2(8, 9); // SoftwareSerial: assign Rx and Tx pin
@@ -307,6 +310,34 @@ void loop()
     stepperMotor.step(stepsRequired);
     stepperState = 0;
   }
+
+  //L1 and L2 Triggers (Used to "fine adjust" height of trimmer below lower threshold)
+  if(ps2.readButton(PS2_LEFT_2) == 0) // 0 = pressed, 1 = released
+  {
+    delay(10);
+    if(ps2.readButton(PS2_LEFT_2) == 0 && analogRead(arm_pot) <= 125) { //double check buttonstate after short delay to prevent false trigger. also check if trimmer is below lower threshold.
+      Motor_Arm->setSpeed(50);
+      Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm when trigger L2 is "pressed"
+    }
+    else {  //Stop arm is lower limit reached.
+      Motor_Arm->setSpeed(0);
+      Motor_Arm->run(RELEASE);
+    }
+  }
+  else if (ps2.readButton(PS2_LEFT_1) == 0) // 0 = pressed, 1 = released
+  {
+    delay(10);
+    if(ps2.readButton(PS2_LEFT_1) == 0 && analogRead(arm_pot) <= 125) { //double check buttonstate after short delay to prevent false trigger. also check if trimmer is below lower threshold.
+      Motor_Arm->setSpeed(70);
+      Motor_Arm->run(FORWARD);   //Run motor in direction to RAISE arm when trigger L1 is "pressed"
+    }
+    else {  //Stop arm is lower limit reached.
+      Motor_Arm->setSpeed(0);
+      Motor_Arm->run(RELEASE);
+    }
+  }
+          
+        
   
   /****************************
       BUTTONS
@@ -626,14 +657,14 @@ void loop()
     //MOVING FORWARD
     if (drive_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is positive)
       //If turning LEFT:
-      if (joystick_steer < 0) {   //Check LEFT/RIGHT direction of joystick
+      if (joystick_steer < -10) {   //Check LEFT/RIGHT direction of joystick is beyond threshold
         motor_speed_left = drive_speed - (drive_speed * 0.3);   //drive_speed automatically decreases as the joystick is pushed left. 
                                                                 //The rate is increased by subtracting an additional fraction of the current speed.)
         motor_speed_right = drive_speed + (255 - drive_speed);   //Adjust the right wheel speed (which is based on drive_speed) to a higher speed by adding the difference between
                                                                  //the maximum drive speed and the current drive speed. This essentially keeps the motor at maximum speed.
       }
       //If turning RIGHT:
-      else if (joystick_steer > 0) {
+      else if (joystick_steer > 10) {
         motor_speed_left = drive_speed + (255 - drive_speed);   //Same control logic as turning left...
         motor_speed_right = drive_speed - (drive_speed * 0.3);  //but applied to the opposite motors.
       }
@@ -652,13 +683,13 @@ void loop()
     //MOVING BACKWARD
     else if (drive_speed < 0) {
       //If turning LEFT (Robot BODY rotating RIGHT as it moves backward):
-      if (joystick_steer < 0) {
+      if (joystick_steer < -10) {
         motor_speed_left = drive_speed - (drive_speed * 0.3);
         motor_speed_right = drive_speed - (255 + drive_speed);
         
       }
       //If turning RIGHT (Robot BODY rotating LEFT as it moves backward):
-      else if (joystick_steer > 0) {
+      else if (joystick_steer > 10) {
         motor_speed_left = drive_speed - (255 + drive_speed);
         motor_speed_right = drive_speed - (drive_speed * 0.3);
       }
@@ -713,16 +744,29 @@ void loop()
     joystick_arm = 128 - ps2.readButton(PS2_JOYSTICK_RIGHT_Y_AXIS);  //Double check after a short delay to prevent false activation
     if (joystick_arm > 15 || joystick_arm < -15) {
       arm_speed = map(joystick_arm, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (center to extremity)
-      motor_speed_arm = arm_speed;
+//      motor_speed_arm = arm_speed;    //Set arm to variable speed based on joystick.
+      motor_speed_arm = 70; //Set arm speed to a constant value
   
       #ifdef ARM_MOTOR
       if (arm_speed > 0) {
-        Motor_Arm->setSpeed(motor_speed_arm);
-        Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm when joystick is "pushed forward"
+        if (analogRead(arm_pot) >= 125) {
+          Motor_Arm->setSpeed(abs(motor_speed_arm));
+          Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm when joystick is "pushed forward"
+        }
+        else {  //Stop arm is lower limit reached.
+          Motor_Arm->setSpeed(0);
+          Motor_Arm->run(RELEASE);
+        }
       }
       else if (arm_speed < 0) {   //Check if negative..
-        Motor_Arm->setSpeed(-motor_speed_arm);    //Always pass "setSpeed" a positive value. Multiply the passed argument by -1 to make the passed value positive.
-        Motor_Arm->run(FORWARD);   //Run motor in direction to LIFT arm when joystick is "pulled back"
+        if (analogRead(arm_pot) <= 250) { 
+          Motor_Arm->setSpeed(abs(motor_speed_arm));    //Always pass "setSpeed" a positive value.
+          Motor_Arm->run(FORWARD);   //Run motor in direction to LIFT arm when joystick is "pulled back"
+        }
+        else {  //Stop arm if upper limit reached.
+          Motor_Arm->setSpeed(0);
+          Motor_Arm->run(RELEASE);
+        }
       }
       #endif
   
