@@ -60,6 +60,8 @@ int joystick_arm = 0;         //right joystick position in Y axis (UP and DOWN).
 int arm_scoop = 200;             //arm position for scooping up objects
 int arm_extend = 250;         //best position to extend arm enough for clean release of object
 int arm_up = 300;            //highest mechanically safe position for the arm (may vary depending on current attachment)
+int arm_trimmer_low_threshold = 100;
+int arm_trimmer_high_threshold = 250;
 float drive_speed = 0.0;     //base speed component in the FORWARD/BACKWARD direction - derived from "joystick_drive"
 float turn_speed = 0.0;      //speed adjustment value for left and right wheels while turning
 float arm_speed = 0.0;        //speed of arm motor
@@ -298,14 +300,14 @@ void loop()
     if(ps2.readButton(PS2_RIGHT_2) == 0 && stepperState == 0) { //double check buttonstate after short delay to prevent false trigger
       //Rotate CW
       stepperState = 1;
-      stepsRequired = STEPS_PER_OUT_REV/2;    //Rotate a fraction of a revolution. Change divisor value to adjust amount of rotation. Change sign to adjust direction of rotation.
+      stepsRequired = STEPS_PER_OUT_REV/1.8;    //Rotate a fraction of a revolution. Change divisor value to adjust amount of rotation. Change sign to adjust direction of rotation.
       stepperMotor.setSpeed(700);
       stepperMotor.step(stepsRequired);
     }
   }
   else if (stepperState == 1) {
     //Rotate CCW
-    stepsRequired = -STEPS_PER_OUT_REV/2;
+    stepsRequired = -STEPS_PER_OUT_REV/1.8;
     stepperMotor.setSpeed(700);
     stepperMotor.step(stepsRequired);
     stepperState = 0;
@@ -315,7 +317,7 @@ void loop()
   if(ps2.readButton(PS2_LEFT_2) == 0) // 0 = pressed, 1 = released
   {
     delay(10);
-    if(ps2.readButton(PS2_LEFT_2) == 0 && analogRead(arm_pot) <= 125) { //double check buttonstate after short delay to prevent false trigger. also check if trimmer is below lower threshold.
+    if(ps2.readButton(PS2_LEFT_2) == 0 && analogRead(arm_pot) <= arm_trimmer_low_threshold) { //double check buttonstate after short delay to prevent false trigger. also check if trimmer is below lower threshold.
       Motor_Arm->setSpeed(50);
       Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm when trigger L2 is "pressed"
     }
@@ -327,7 +329,7 @@ void loop()
   else if (ps2.readButton(PS2_LEFT_1) == 0) // 0 = pressed, 1 = released
   {
     delay(10);
-    if(ps2.readButton(PS2_LEFT_1) == 0 && analogRead(arm_pot) <= 125) { //double check buttonstate after short delay to prevent false trigger. also check if trimmer is below lower threshold.
+    if(ps2.readButton(PS2_LEFT_1) == 0 && analogRead(arm_pot) <= arm_trimmer_low_threshold) { //double check buttonstate after short delay to prevent false trigger. also check if trimmer is below lower threshold.
       Motor_Arm->setSpeed(70);
       Motor_Arm->run(FORWARD);   //Run motor in direction to RAISE arm when trigger L1 is "pressed"
     }
@@ -749,7 +751,7 @@ void loop()
   
       #ifdef ARM_MOTOR
       if (arm_speed > 0) {
-        if (analogRead(arm_pot) >= 125) {
+        if (analogRead(arm_pot) >= arm_trimmer_low_threshold) {
           Motor_Arm->setSpeed(abs(motor_speed_arm));
           Motor_Arm->run(BACKWARD);   //Run motor in direction to LOWER arm when joystick is "pushed forward"
         }
@@ -759,7 +761,7 @@ void loop()
         }
       }
       else if (arm_speed < 0) {   //Check if negative..
-        if (analogRead(arm_pot) <= 250) { 
+        if (analogRead(arm_pot) <= arm_trimmer_high_threshold) { 
           Motor_Arm->setSpeed(abs(motor_speed_arm));    //Always pass "setSpeed" a positive value.
           Motor_Arm->run(FORWARD);   //Run motor in direction to LIFT arm when joystick is "pulled back"
         }
