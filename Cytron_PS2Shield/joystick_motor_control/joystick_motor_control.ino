@@ -300,14 +300,14 @@ void loop()
     if(ps2.readButton(PS2_RIGHT_2) == 0 && stepperState == 0) { //double check buttonstate after short delay to prevent false trigger
       //Rotate CW
       stepperState = 1;
-      stepsRequired = STEPS_PER_OUT_REV/1.8;    //Rotate a fraction of a revolution. Change divisor value to adjust amount of rotation. Change sign to adjust direction of rotation.
+      stepsRequired = STEPS_PER_OUT_REV/2;    //Rotate a fraction of a revolution. Change divisor value to adjust amount of rotation. Change sign to adjust direction of rotation.
       stepperMotor.setSpeed(700);
       stepperMotor.step(stepsRequired);
     }
   }
   else if (stepperState == 1) {
     //Rotate CCW
-    stepsRequired = -STEPS_PER_OUT_REV/1.8;
+    stepsRequired = -STEPS_PER_OUT_REV/2;
     stepperMotor.setSpeed(700);
     stepperMotor.step(stepsRequired);
     stepperState = 0;
