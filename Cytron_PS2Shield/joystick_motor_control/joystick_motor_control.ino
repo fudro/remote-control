@@ -60,8 +60,8 @@ int joystick_arm = 0;         //right joystick position in Y axis (UP and DOWN).
 int arm_scoop = 200;             //arm position for scooping up objects
 int arm_extend = 250;         //best position to extend arm enough for clean release of object
 int arm_up = 300;            //highest mechanically safe position for the arm (may vary depending on current attachment)
-int arm_trimmer_low_threshold = 100;
-int arm_trimmer_high_threshold = 250;
+int arm_trimmer_low_threshold = 65;
+int arm_trimmer_high_threshold = 170;
 float drive_speed = 0.0;     //base speed component in the FORWARD/BACKWARD direction - derived from "joystick_drive"
 float turn_speed = 0.0;      //speed adjustment value for left and right wheels while turning
 float arm_speed = 0.0;        //speed of arm motor
@@ -300,14 +300,14 @@ void loop()
     if(ps2.readButton(PS2_RIGHT_2) == 0 && stepperState == 0) { //double check buttonstate after short delay to prevent false trigger
       //Rotate CW
       stepperState = 1;
-      stepsRequired = STEPS_PER_OUT_REV/2;    //Rotate a fraction of a revolution. Change divisor value to adjust amount of rotation. Change sign to adjust direction of rotation.
+      stepsRequired = STEPS_PER_OUT_REV/1.5;    //Rotate a fraction of a revolution. Change divisor value to adjust amount of rotation. Change sign to adjust direction of rotation.
       stepperMotor.setSpeed(700);
       stepperMotor.step(stepsRequired);
     }
   }
   else if (stepperState == 1) {
     //Rotate CCW
-    stepsRequired = -STEPS_PER_OUT_REV/2;
+    stepsRequired = -STEPS_PER_OUT_REV/1.5;
     stepperMotor.setSpeed(700);
     stepperMotor.step(stepsRequired);
     stepperState = 0;
