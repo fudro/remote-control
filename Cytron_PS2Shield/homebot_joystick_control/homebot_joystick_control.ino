@@ -12,8 +12,8 @@
  * b) Drive control using LEFT and RIGHT joysticks:       (LEFT-Y-Axis = left drive speed, RIGHT-Y-Axis = right drive speed, Sonar Sensors considered FRONT of robot)
  * c) Arm control using LEFT joystick:                    (Y-Axis: Shoulder Up/Down = stick forward/back, X-Axis: Turntable Rotate CCW/CW = stick Left/Right)
  * d) Arm control using RIGHT joystick:                   (Y-Axis: Elbow Up/Down = stick forward/back, X-Axis: Wrist Rotate: Left = CCW / Right = CW, looking "down" the arm toward the wrist)
- * e) Activate Tail Gripper using R Buttons:              (L1 pressed = OPEN, L2 pressed = CLOSE)
- * f) Activate Arm Gripper using R Buttons:               (R1 pressed = OPEN, R2 pressed = CLOSE)
+ * DONE e) Activate Tail Gripper using L Buttons:              (L1 pressed = OPEN, L2 pressed = CLOSE)
+ * DONE f) Activate Arm Gripper using R Buttons:               (R1 pressed = OPEN - Automatic Fully Open, R2 pressed = CLOSE - Manual, continuous closing while pressed)
  * g) D-Pad programmatic Arm movement                     (UP = arm to front toward Sonar, DOWN = arm to rear toward Tail Gripper)
  * h) D-Pad programmatic Chassis Movement                 (LEFT = rotate 90 degrees CCW based on IMU, RIGHT = rotate 90 degrees CW based on IMU)
  * EXTRA:
@@ -33,7 +33,7 @@
 
 #define DEBUG_JOYSTICK
 
-#define IMU   //Use flag when using IMU otherwhise an error will be thrown is the sensor is not connected.
+#define IMU   //Use flag when using IMU otherwhise an error will be thrown if the sensor is not connected.
 //Set up MegoPi motor ports
 MeMegaPiDCMotor armGrip(PORT1A); //Arm Gripper
 MeMegaPiDCMotor armWrist(PORT1B); //Wrist
@@ -48,7 +48,6 @@ MeMegaPiDCMotor shoulder(PORT4B); //Shoulder
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
  
 //Create PS2Shield object
-//Cytron_PS2Shield ps2(17, 16); // SoftwareSerial: assign Rx and Tx pin
 Cytron_PS2Shield ps2; // Create object without paramaters to use the MegaPi hardware Serial2 pins 17(RX) and 16(TX)
 
 //Direction Constants
@@ -63,7 +62,7 @@ const int FW = 1; //Forward
 const int BW = 0; //Backward
 //TODO: Add Lidar Pins
 //Pin Assignments
-const int IMU_RESET = 39;   //This reset functionality does not work yet. The sensor doesn't fully recover after reset because it also needs to be re-initialized.
+const int IMU_RESET = 39;   //This reset functionality does not work and requires additional coding. The sensor doesn't fully recover after reset because it also needs to be re-initialized.
 const int WRIST_HALL = 30;
 const int WRIST_SWITCH = 28;
 const int TURNTABLE_HALL = 26;
@@ -82,43 +81,47 @@ const int ARMGRIPTIME = 1200; //Time for arm gripper at max speed 255 to go from
 const int WRISTTIME = 1000; //Wrist rotation at max speed 255 for 1000 milliseconds is approximately 180 degres of rotation (or one-half turn)
 const int TAILGRIPTIME = 400;  //Time for tail gripper at HALF SPEED (128) to go from fully open to fully closed and vice versa.
 //Sonar Constants
-int NUM_SAMPLES = 9;
-int SAMPLE_OFFSET = 3;  //number of entries from the max entry of the sorted array
+int NUM_SAMPLES = 9;    //The number of times the sonar sensor is sampled. These samples are then sorted from low to high.
+int SAMPLE_OFFSET = 3;  //The number of entries from the max (highest) entry in the sorted array of samples (i.e. the 7th item in a list of 10)
 //Potentiometer Limits
 const int ELBOW_MIN = 80; //Limit values for sensor
 const int ELBOW_MAX = 700;
 const int SHOULDER_MIN = 375;
 const int SHOULDER_MAX = 600;
-//Encoder Limits
-const int TURNTABLE_ANALOG_MAX = 875;
+//Encoder Analog Limits
+//The encoders use the analog value from the opto-coupler sensor board. 
+//The Min/Max constants represent the "highest" and "lowest" analog values returned from the sensor. (These values can vary by sensor board and must be determined through testing.)
+//When the sensor value goes above or below these values, it corresponds to the sensor states of "on" or "off" as the encoder disc passes through the opto-coupler.
+//The resulting changes in state are counted as an encoder "ticks".
+const int TURNTABLE_ANALOG_MAX = 875;   
 const int TURNTABLE_ANALOG_MIN = 650;
 const int DRIVE_LEFT_ANALOG_MAX = 700;
 const int DRIVE_LEFT_ANALOG_MIN = 400;
 const int DRIVE_RIGHT_ANALOG_MAX = 700;
 const int DRIVE_RIGHT_ANALOG_MIN = 400;
 //State Variables
-int triangleState = 0;
+int triangleState = 0;    //remote control button states
 int circleState = 0;
 int crossState = 0;
 int squareState = 0;
 int armGripState = 1; //Default to "closed"
 int tailGripState = 1;  //Default to "closed"
-int wristSwitch = 0;  //store state of wrist switch
-int wristState = H;   //current state of wrist (H or V), horizontal direction as default
-int turnTableEncoder = 1; //state of turntable encoder. Set initial stae to 1 since this pin is pulled high
+int wristSwitch = 0;  //state of wrist switch
+int wristState = H;   //state of wrist orientation (H or V), horizontal direction as default
+int turnTableEncoder = 1; //state of turntable encoder as high(1) or low(0). Set initial state to 1 since this input pin is pulled high
 int turnTableSwitch = 0;  //state of turntable switch, default state is 0 (LOW)
 int turnTableHall = 1;    //state of turntable hall effect sensor, default state is HIGH, sensor pulls pin LOW when active (magnet present)
-int driveLeftEncoder = 1; //last state of encoder high(1) or low(0), for comparison
+int driveLeftEncoder = 1; //last state of encoder high(1) or low(0), for comparison with current state read from sensor
 int driveRightEncoder = 1;
 //Tracking variables
-int turnTableCount = 1;  //store value of turntable position based on encoder ticks. Default to 1 for easy math (15 ticks ~ 90 degrees)
+int turnTableCount = 1;  //store encoder tick value of turntable position based on encoder ticks. Default to 1 for easier calculations (15 ticks ~ 90 degrees)
 int driveLeftCount = 0;  //store encoder tick value to track movement
 int driveRightCount = 0;
-int driveLeftAnalog = 0;  //last analog value from drive encoder, raw analog value is used to set current state of encoder
+int driveLeftAnalog = 0;  //last analog value from drive encoder, raw analog value is compared with the Min/Max constants to set current state of encoder
 int driveRightAnalog = 0;
 int turnTableAnalog = 0;  //last analog value of turntable encoder
-int sort_count = 0; //track the last ten selected sonar values
-int left_sonar[10];    //arrays to store sonar readings
+int sort_count = 0;       //track the last ten "selected" sonar values. Sonar values are "selected" using the NUM_SAMPLES and SAMPLE_OFFSET constants.
+int left_sonar[10];       //arrays to store sonar readings
 int center_sonar[10];
 int right_sonar[10];
 int left_sort_array[10]; //arrays to hold last 10 selected values from sorted sonar reading arrays
@@ -131,7 +134,8 @@ int range_right = 0;
 int count = 0;    //test variable
 int runFlag = 1;  //test variable
 
-//the runArray[] determines which motor functions are active (0 = inactive, 1 = active). Event if code is called by the main loop, the flag array will prevent code execution if motor is not set to "active" (1)
+//The runArray[] determines which motor functions are active (0 = inactive, 1 = active). 
+//Even if code is called by the main loop, the flag array will prevent code execution if motor is not set to "active".
 int runArray[] = {1,  //runArray[0]: armGripper
                   0,  //runArray[1]: wrist
                   0,  //runArray[2]: elbow
@@ -143,23 +147,23 @@ int runArray[] = {1,  //runArray[0]: armGripper
 };
 
 //Joystick Variables
-int joystick_left_Y = 0;       //left joystick position in Y axis (FORWARD and BACKWARD)
-int joystick_left_X = 0;       //left joystick position in X axis (LEFT and RIGHT)
-int joystick_arm = 0;         //right joystick position in Y axis (UP and DOWN). TODO:Direction is inverted - pull back to lift UP
-int lift_speed = 0;
-int turn_speed = 0;
-int commandState = 0;         //Track if a command is currently being executed
+int joystick_left_Y = 0;      //left joystick position in Y axis (FORWARD and BACKWARD)
+int joystick_left_X = 0;      //left joystick position in X axis (LEFT/CCW and RIGHT/CW)
+//int joystick_arm = 0;         //right joystick position in Y axis (UP and DOWN). TODO:Direction is inverted - pull back to lift UP
+int shoulder_lift_speed = 0;  //speed at which the arm "shoulder" moves up and down
+int shoulder_turn_speed = 0;
+//int commandState = 0;         //Track if a command is currently being executed
 
 /***********************************
- * FUNCTION PROTOTYPES
+ * FUNCTION PROTOTYPES - Function prototypes are required to allow function with parameters that can have deafult values.
 ***********************************/
-void armGripper(int gripState, int gripTime = ARMGRIPTIME); //gripState is OPEN or CLOSE
-void armGripperManual(int gripState, int gripTime = ARMGRIPTIME); //for remote manual operation
+void armGripper(int gripState, int gripTime = ARMGRIPTIME); //gripState is OPEN (0) or CLOSE (1)
+void armGripperManual(int gripState, int gripTime = ARMGRIPTIME); //special version of arm gripper funtion for manual remote control operation
 void wristRotate (int targetState, int wristDirection = CW, float wristRevolution = 0.0, int wristSpeed = 255);  //targetState is (V)ertical or (H)orizontal, wristRevolution is the number of full revolutions to be perfomed.
-void elbowMove(int elbowPosition = 500, int elbowSpeed = 65);  //approximate center position and preferred default speed.
-void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 127); //approximate center position and preferred default speed.
+void elbowMove(int elbowPosition = 500, int elbowSpeed = 65);  //default parameter values are approximate center position and preferred default speed.
+void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 127); //default parameter values are approximate center position and preferred default speed.
 void turnTableMove(int turnDegrees = 0, int turnDirection = CW, int turnSpeed = 65);    //turnDegrees is the degrees of angular rotation from the current position
-void tailGripper(int gripState, int gripTime = TAILGRIPTIME); //gripState is OPEN or CLOSE
+void tailGripper(int gripState, int gripTime = TAILGRIPTIME); //gripState is OPEN (0) or CLOSE (1)
 void driveMove(int driveDistance = 20, int driveDirection = FW, int driveSpeed = 127);
 
 
@@ -176,9 +180,9 @@ void setup()
   pinMode(TURNTABLE_HALL, INPUT_PULLUP); //turntable hall effect, set as pullup since sensor goes LOW when activated
   pinMode(TURNTABLE_ENCODER, INPUT_PULLUP); //turntable encoder
   pinMode(IMU_RESET, OUTPUT);
-  digitalWrite(IMU_RESET, HIGH);  //pull IMU reset pin low to trigger reset
+  digitalWrite(IMU_RESET, HIGH);  //default pin state is HIGH. Pull IMU reset pin LOW to trigger reset
   pinMode(SONAR_TRIGGER, OUTPUT);
-  digitalWrite(SONAR_TRIGGER, LOW);
+  digitalWrite(SONAR_TRIGGER, LOW);   //Default sonar trigger pin to LOW. Pull HIGH to trigger sensor.
   //Set up serial communications
   Serial.begin(115200);
   Serial.println("HomeBot Remote Control Test!");
@@ -186,7 +190,7 @@ void setup()
   Serial.println("StartingTest in 3 seconds...");
   delay(3000);
   #ifdef IMU
-  //IMU Sensor (BNO055) This sensor uses I2C so no pin additional assignments are necessary 
+  //IMU Sensor (BNO055) This sensor uses I2C so no additional pin assignments are necessary 
   /* Initialise the sensor */
   if(!bno.begin())
   {
@@ -195,13 +199,13 @@ void setup()
     while(1);
   }
   delay(1000);
-  bno.setExtCrystalUse(true);   //advanced setup (I don;t know what this actually does)
+  bno.setExtCrystalUse(true);   //advanced setup (I don't know what this actually does)
   #endif
   
   ps2.begin(115200);          //Start remote control shield and set baud rate (baudrate must be the same as the jumper setting at PS2 shield)
   Serial.println("Remote Control Ready!");
 
-  Serial2.begin(115200);       //Set serial channel for remote control
+  Serial2.begin(115200);       //Set MegaPi serial channel for remote control communication
 }
 
 void loop()
@@ -212,16 +216,16 @@ void loop()
   //L1 and L2 Triggers (Used for Tail Gripper)
   if (ps2.readButton(PS2_LEFT_1) == 0) // 0 = pressed, 1 = released
   {
-    delay(10);
-    if(ps2.readButton(PS2_LEFT_1) == 0 && tailGripState == 1) { //debounce button by double checking buttonstate
+    delay(10);  //debounce button by pausing and then double checking buttonstate
+    if(ps2.readButton(PS2_LEFT_1) == 0 && tailGripState == 1) {
       Serial.println("L1 Pressed!");
       tailGripper(OPEN);
     }
   }
   if(ps2.readButton(PS2_LEFT_2) == 0) // 0 = pressed, 1 = released
   {
-    delay(10);
-    if(ps2.readButton(PS2_LEFT_2) == 0 && tailGripState == 0) { //double check buttonstate after short delay to prevent false trigger. also check if trimmer is below lower threshold.
+    delay(10);  //debounce button by pausing and then double checking buttonstate
+    if(ps2.readButton(PS2_LEFT_2) == 0 && tailGripState == 0) { 
       Serial.println("L2 Pressed!");
       tailGripper(CLOSE);
     }
@@ -231,18 +235,18 @@ void loop()
   //R1 and R2 Triggers (Used for Arm Gripper)
   if(ps2.readButton(PS2_RIGHT_1) == 0) // 0 = pressed, 1 = released
   {
-    delay(10);
-    if(ps2.readButton(PS2_RIGHT_1) == 0 && armGripState == 1) { //double check buttonstate after short delay to prevent false trigger
+    delay(10);  //debounce button by pausing and then double checking buttonstate
+    if(ps2.readButton(PS2_RIGHT_1) == 0) {
       Serial.println("R1 Pressed!");
-      armGripper(OPEN);
+      armGripper(OPEN);   //automatically fully open gripper based on timer default constant
     }
   }
   if(ps2.readButton(PS2_RIGHT_2) == 0) // 0 = pressed, 1 = released
   {
-    delay(10);
-    if(ps2.readButton(PS2_RIGHT_2) == 0) { //double check buttonstate after short delay to prevent false trigger
+    delay(10);  //debounce button by pausing and then double checking buttonstate
+    if(ps2.readButton(PS2_RIGHT_2) == 0) {
       Serial.println("R2 Pressed!");
-      armGripperManual(CLOSE);
+      armGripperManual(CLOSE);    //Continually close arm gripper while button is pressed.
     }
   }
   else if(ps2.readButton(PS2_RIGHT_2) == 1)
@@ -317,61 +321,61 @@ void loop()
       JOYSTICKS
   ****************************/
   //LEFT joystick position. Value of 128 is center.
-  joystick_left_Y = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD is positive)
-  joystick_left_X = ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT is positive)
-  
-  if (joystick_left_Y > 50 || joystick_left_Y < -50) {       //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD. Defaults to 10.).
-    lift_speed = map(joystick_left_Y, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (center to extremity)
+  joystick_left_Y = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
+  joystick_left_X = ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT/RotateCW is positive)
+
+  //Shoulder Lift DOWN (joystick forward) and UP (joystick backward)
+  if (joystick_left_Y > 50 || joystick_left_Y < -50) {       //Create "dead zone" for when joystick is centered (with independent adjustment values for DOWN and UP. Defaults to 50 for both.).
+    shoulder_lift_speed = map(joystick_left_Y, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (center to extremity)
   }
   else {
-    lift_speed = 0;
+    shoulder_lift_speed = 0;
   }
+  //Shoulder Rotate CCW (joystick left) and CCW (joystick right)
   if (joystick_left_X > 50 || joystick_left_X < -50) { 
-    turn_speed = map(joystick_left_X, 0, 128, 0, 255); 
+    shoulder_turn_speed = map(joystick_left_X, 0, 128, 0, 255); 
   }  
   else {
-    turn_speed = 0;
+    shoulder_turn_speed = 0;
   }
-
-  if (lift_speed != 0 || turn_speed != 0) {
+  //Only activate shorlder motor if the LEFT joystick is outside of deadzone and motor speeds have been set to a non-zero value.
+  if (shoulder_lift_speed != 0 || shoulder_turn_speed != 0) {
     Serial.print("Left Joystick: ");
-    //MOVING FORWARD
-    if (lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD greater than zero and moves that shoulder downward)
+    //MOVING DOWN (Joystick Forward)
+    if (shoulder_lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
       Serial.print("Forward! ");
     }
-    //MOVING BACKWARD
-    else if (lift_speed < 0) {
+    //MOVING UP (Joystick Backward)
+    else if (shoulder_lift_speed < 0) {
       Serial.print("Backward! ");
     }
-  
-    //TURNING CW
-    if (turn_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD greater than zero and moves that shoulder downward)
+    //TURNING CW  (Joystick Right)
+    if (shoulder_turn_speed > 0) {   //Check LEFT/RIGHT direction of joystick (RIGHT is greater than zero and moves the shoulder Clockwise)
       Serial.print("Right! ");
     }
-    //TURNING CCW
-    else if (turn_speed < 0) {
+    //TURNING CCW (Joystick Left)
+    else if (shoulder_turn_speed < 0) {
       Serial.print("Left! ");
     }
-    
+    //Display additional information about the joystick input
     #ifdef DEBUG_JOYSTICK
     Serial.print("\t");
     Serial.print ("Lift: ");
     Serial.print (joystick_left_Y);
     Serial.print ("\t");
-    Serial.print ("lift_speed: ");
-    Serial.print (lift_speed);
+    Serial.print ("shoulder_lift_speed: ");
+    Serial.print (shoulder_lift_speed);
     Serial.print ("\t");
     Serial.print ("Horizontal: ");
     Serial.print (joystick_left_X);
     Serial.print ("\t");
-    Serial.print ("turn_speed: ");
-    Serial.print (turn_speed);
+    Serial.print ("shoulder_turn_speed: ");
+    Serial.print (shoulder_turn_speed);
     Serial.print ("\n");
     #endif
   }
 }
 
-  
 
 void armGripper(int targetState, int gripTime = ARMGRIPTIME) {
   if (runArray[0] == 1) {   //Check if action is enabled in runArray
@@ -379,7 +383,7 @@ void armGripper(int targetState, int gripTime = ARMGRIPTIME) {
     int gripSpeed = 255;   // value: between -255 and 255. It is rarely necessary to change the gripper speed, so it is only a local variable
     Serial.print("\n");
     Serial.println("Arm Gripper...");
-    if (targetState == OPEN) {
+    if (targetState == OPEN && armGripState == CLOSE) {   //Check armGripState to prevent uncessary actuation of gripper motor if already fully open.
       Serial.println("Arm Open:");
       Serial.print("Speed: ");
       Serial.println(gripSpeed);
@@ -388,20 +392,7 @@ void armGripper(int targetState, int gripTime = ARMGRIPTIME) {
       armGrip.run(gripSpeed); 
       delay(gripTime);
       armGrip.stop();
-      Serial.print("armGripState: ");
-      Serial.println(armGripState);
-      Serial.print("\n");
-    }
-    else if (targetState == CLOSE && armGripState == 0) {
-      Serial.println("Arm Close:");
-      Serial.print("Speed: ");
-      Serial.println(-gripSpeed);
-      Serial.print("Time: ");
-      Serial.println(gripTime);
-      armGrip.run(-gripSpeed); 
-      delay(gripTime);
-      armGrip.stop();
-      armGripState = 1;
+      armGripState = OPEN;
       Serial.print("armGripState: ");
       Serial.println(armGripState);
       Serial.print("\n");
@@ -420,6 +411,7 @@ void armGripperManual(int targetState, int gripTime = ARMGRIPTIME) {
     }
     else if(targetState == STOP) {
       armGrip.stop();
+      armGripState = CLOSE;
     }
     delay(10);
   }
