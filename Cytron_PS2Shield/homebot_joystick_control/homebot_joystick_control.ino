@@ -344,11 +344,12 @@ void loop()
     //MOVING DOWN (Joystick Forward)
     if (shoulder_lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
       Serial.print("Down! \n");
-      elbowMove();
+      elbowMove(ELBOW_MIN);
     }
     //MOVING UP (Joystick Backward)
     else if (shoulder_lift_speed < 0) {
       Serial.print("Up! \n");
+      elbowMove(ELBOW_MAX);
     }
   }
   else {
@@ -399,7 +400,7 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
     if(elbowPosition == ELBOW_MIN) {   //Check if command is to move "down"
       if(lastPosition - 1 > ELBOW_MIN) {  //check if elbow has reached lower limit
         elbow.run(-elbowSpeed);
-        elbowState = 1;   //Set elbow as MOVING
+        elbowState = -1;   //Set elbow as MOVING DOWN
         Serial.print("\n");
         Serial.println("Elbow Down");
         Serial.print("Target Position: ");
@@ -420,7 +421,7 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
     else if(elbowPosition == ELBOW_MAX) {
       if(lastPosition + 1 < ELBOW_MAX) {  //check if elbow has reached lower limit
         elbow.run(elbowSpeed);
-        elbowState = 1;   //Set elbow as MOVING
+        elbowState = 1;   //Set elbow as MOVING UP
         Serial.print("\n");
         Serial.println("Elbow Down");
         Serial.print("Target Position: ");
@@ -441,8 +442,16 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
     else if(elbowPosition == STOP) {
       //Brake motor once target position is reached
       elbow.stop();
+      if(elbowState < 0) {
+        elbow.run(elbowSpeed); //Reverse motor direction to brake briefly
+      }
+      else if(elbowState > 0) {
+        elbow.run(-elbowSpeed); //Reverse motor direction to brake briefly
+      }
+      delay(30);
       elbow.run(0);    //Release motor by setting speed to zero
       elbow.stop();
+      elbowState = 0;   //Set elbow as NOT MOVING
       Serial.print("JOYSTICK NEUTRAL!");
     }
   }
