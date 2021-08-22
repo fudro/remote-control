@@ -324,21 +324,21 @@ void loop()
   joystick_left_Y = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
   joystick_left_X = ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT/RotateCW is positive)
 
-  //Shoulder DOWN (joystick forward) and UP (joystick backward)
-  if (joystick_left_Y > 50 || joystick_left_Y < -50) {       //Create "dead zone" for when joystick is centered (with independent adjustment values for DOWN and UP. Defaults to 50 for both.).
+  //Check for joystick movement UP/DOWN
+  if (joystick_left_Y > 50 || joystick_left_Y < -50) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for DOWN and UP. Defaults to 50 for both.).
     shoulder_lift_speed = map(joystick_left_Y, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (center to extremity)
   }
   else {
-    shoulder_lift_speed = 0;
+    shoulder_lift_speed = 0;    //if no jystick movement, set speed to zero.
   }
-  //Shoulder Rotate CCW (joystick left) and CCW (joystick right)
+  //Check for joystick movement LEFT/RIGHT
   if (joystick_left_X > 50 || joystick_left_X < -50) { 
     shoulder_turn_speed = map(joystick_left_X, 0, 128, 0, 255); 
   }  
   else {
     shoulder_turn_speed = 0;
   }
-  //Only activate shoulder motor if the LEFT joystick is outside of deadzone AND the motor speeds have been set to a non-zero value.
+  //Check UP/DOWN direction
   if (shoulder_lift_speed != 0) {
     Serial.print("Left Joystick: ");
     //MOVING DOWN (Joystick Forward)
@@ -350,13 +350,15 @@ void loop()
     else if (shoulder_lift_speed < 0) {
       Serial.print("Up! \n");
     }
-    else {
-      //Stop
-      elbowMove(STOP);
-      Serial.print("JOYSTICK NEUTRAL!!\n");
-    }
   }
-  else if(shoulder_turn_speed != 0) {
+  else {
+    //Stop
+      elbowMove(STOP);
+      Serial.print("UP/DOWN NEUTRAL!!\n");
+  }
+
+  //Check LEFT/RIGHT direction
+  if(shoulder_turn_speed != 0) {
     //TURNING CW  (Joystick Right)
     if (shoulder_turn_speed > 0) {   //Check LEFT/RIGHT direction of joystick (RIGHT is greater than zero and moves the shoulder Clockwise)
       Serial.print("Right! ");
@@ -364,9 +366,6 @@ void loop()
     //TURNING CCW (Joystick Left)
     else if (shoulder_turn_speed < 0) {
       Serial.print("Left! ");
-    }
-    else {
-      //stop
     }
     //Display additional information about the joystick input
     #ifdef DEBUG_JOYSTICK
@@ -385,28 +384,27 @@ void loop()
     Serial.print ("\n");
     #endif
   }
+  else {
+    //stop
+    Serial.print("LEFT/RIGHT NEUTRAL!!\n");
+  }
 }
 
 
 void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values allow the function to be called without arguments to reset to a default position (at the default speed).
   if(runArray[2] == 1) {    //Check if movement is allowed
-    if(elbowPosition >= ELBOW_MIN && elbowPosition <= ELBOW_MAX) {   //Check if command value is within allowed range
-      int elbowState = 0; //Initialize elbow as NOT MOVING
-      int lastPosition = analogRead(ELBOW_POT);   //read encoder position
+    int elbowState = 0; //Initialize elbow as NOT MOVING
+    int lastPosition = analogRead(ELBOW_POT);   //read encoder position
+    
+    if(elbowPosition == ELBOW_MIN) {   //Check if command is to move "down"
       if(lastPosition - 1 > ELBOW_MIN) {  //check if elbow has reached lower limit
+        elbow.run(-elbowSpeed);
         elbowState = 1;   //Set elbow as MOVING
         Serial.print("\n");
         Serial.println("Elbow Down");
         Serial.print("Target Position: ");
         Serial.print(lastPosition + 1);
         Serial.print("\n\n");
-//        while(elbowPosition < lastPosition) {   //while target positiion is still lower than the last read position
-//          elbow.run(-elbowSpeed);   //set motor direction to move elbow "down"
-//          delay(10);               //wait for small amount of elbow movement
-//          lastPosition = analogRead(ELBOW_POT);   //get new position
-//          Serial.print("Elbow Position: ");
-//          Serial.println(lastPosition);
-//        }
       }
       else if(lastPosition - 1 <= ELBOW_MIN && elbowState == 1) {    //only stop motor is running. This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
         //Brake motor once target position is reached
@@ -416,39 +414,37 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
         elbow.run(0);    //Release motor by setting speed to zero
         elbow.stop();
         elbowState = 0;   //Set elbow as NOT MOVING
-        Serial.print("Stopped Inside!");
+        Serial.print("Stopped DOWN!\n");
+      }
+    }
+    else if(elbowPosition == ELBOW_MAX) {
+      if(lastPosition + 1 < ELBOW_MAX) {  //check if elbow has reached lower limit
+        elbow.run(elbowSpeed);
+        elbowState = 1;   //Set elbow as MOVING
+        Serial.print("\n");
+        Serial.println("Elbow Down");
+        Serial.print("Target Position: ");
+        Serial.print(lastPosition + 1);
+        Serial.print("\n\n");
+      }
+      else if(lastPosition + 1 >= ELBOW_MAX && elbowState == 1) {    //only stop motor is running. This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
+        //Brake motor once target position is reached
+        elbow.stop();
+        elbow.run(elbowSpeed); //Reverse motor direction to brake briefly
+        delay(30);
+        elbow.run(0);    //Release motor by setting speed to zero
+        elbow.stop();
+        elbowState = 0;   //Set elbow as NOT MOVING
+        Serial.print("Stopped UP!\n");
       }
     }
     else if(elbowPosition == STOP) {
       //Brake motor once target position is reached
       elbow.stop();
-      elbow.run(elbowSpeed); //Reverse motor direction to brake briefly
-      delay(30);
       elbow.run(0);    //Release motor by setting speed to zero
       elbow.stop();
-      Serial.print("Stopped Outside!");
+      Serial.print("JOYSTICK NEUTRAL!");
     }
-//      else if(elbowPosition > lastPosition) {  //If the desired postion is physically HIGHER than the last read position.
-//        Serial.print("\n");
-//        Serial.println("Elbow Up");
-//        Serial.print("Target Position: ");
-//        Serial.print(elbowPosition);
-//        Serial.print("\n\n");
-//        while(elbowPosition > lastPosition) {
-//          elbow.run(elbowSpeed);
-//          delay(10);
-//          lastPosition = analogRead(ELBOW_POT);
-//          Serial.print("Elbow Position: ");
-//          Serial.println(lastPosition);
-//        }
-//        //Brake motor once target position is reached
-//        elbow.stop();
-//        elbow.run(-elbowSpeed); //Reverse motor direction to brake briefly
-//        delay(30);
-//        elbow.run(0);    //Release motor by setting speed to zero
-//        elbow.stop();
-//      }
-//      runArray[2] = 0;
   }
 }
 
