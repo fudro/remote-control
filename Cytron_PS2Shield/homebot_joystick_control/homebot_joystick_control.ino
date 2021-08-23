@@ -141,7 +141,7 @@ int runFlag = 1;  //test variable
 int runArray[] = {1,  //runArray[0]: armGripper
                   0,  //runArray[1]: wrist
                   1,  //runArray[2]: elbow
-                  0,  //runArray[3]: shoulder
+                  1,  //runArray[3]: shoulder
                   0,  //runArray[4]: turntable
                   1,  //runArray[5]: tailGripper
                   0,  //runArray[6]: drive
@@ -494,11 +494,11 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
 
 
 void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 127) { //Default values allow the function to be called without arguments to reset to a default position (at the default speed).
-  if(runArray[2] == 1) {    //Check if movement is allowed
+  if(runArray[3] == 1) {    //Check if movement is allowed
     int lastPosition = analogRead(SHOULDER_POT);   //read encoder position
     
     if(shoulderPosition == SHOULDER_MIN) {   //Check if command is to move "down"
-      if(lastPosition > SHOULDER_MIN) {  //check if shoulder has reached lower limit
+      if(lastPosition < SHOULDER_MIN) {  //check if shoulder has reached lower limit
         shoulder.run(shoulderSpeed);
         shoulderState = 1;   //Set shoulder as MOVING DOWN
         Serial.print("Shoulder DOWN\t");
@@ -506,7 +506,7 @@ void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 127) { //Defau
         Serial.print(lastPosition);
         Serial.print("\n\n");
       }
-      else if(lastPosition <= SHOULDER_MIN && shoulderState == 1) {    //only stop motor is running. This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
+      else if(lastPosition >= SHOULDER_MIN && shoulderState == 1) {    //only stop motor is running. This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
         //Brake motor once target position is reached
         shoulder.stop();
         shoulder.run(-shoulderSpeed); //Reverse motor direction to brake briefly
