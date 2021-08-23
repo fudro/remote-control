@@ -402,7 +402,7 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
         elbow.run(-elbowSpeed);
         elbowState = -1;   //Set elbow as MOVING DOWN
         Serial.print("\n");
-        Serial.println("Elbow Down");
+        Serial.print("Elbow DOWN\t");
         Serial.print("Target Position: ");
         Serial.print(lastPosition + 1);
         Serial.print("\n\n");
@@ -415,7 +415,7 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
         elbow.run(0);    //Release motor by setting speed to zero
         elbow.stop();
         elbowState = 0;   //Set elbow as NOT MOVING
-        Serial.print("Stopped DOWN!\n");
+        Serial.print("Stopped DOWN!\n\n");
       }
     }
     else if(elbowPosition == ELBOW_MAX) {
@@ -423,10 +423,10 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
         elbow.run(elbowSpeed);
         elbowState = 1;   //Set elbow as MOVING UP
         Serial.print("\n");
-        Serial.println("Elbow Down");
+        Serial.print("Elbow UP\t");
         Serial.print("Target Position: ");
         Serial.print(lastPosition + 1);
-        Serial.print("\n\n");
+        Serial.print("\n");
       }
       else if(lastPosition + 1 >= ELBOW_MAX && elbowState == 1) {    //only stop motor is running. This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
         //Brake motor once target position is reached
@@ -436,7 +436,7 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
         elbow.run(0);    //Release motor by setting speed to zero
         elbow.stop();
         elbowState = 0;   //Set elbow as NOT MOVING
-        Serial.print("Stopped UP!\n");
+        Serial.print("Stopped UP!\n\n");
       }
     }
     else if(elbowPosition == STOP) {
@@ -452,7 +452,7 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
       elbow.run(0);    //Release motor by setting speed to zero
       elbow.stop();
       elbowState = 0;   //Set elbow as NOT MOVING
-      Serial.print("JOYSTICK NEUTRAL!");
+      Serial.print("JOYSTICK NEUTRAL!\n\n");
     }
   }
 }
