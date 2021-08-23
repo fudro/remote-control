@@ -85,9 +85,9 @@ int NUM_SAMPLES = 9;    //The number of times the sonar sensor is sampled. These
 int SAMPLE_OFFSET = 3;  //The number of entries from the max (highest) entry in the sorted array of samples (i.e. the 7th item in a list of 10)
 //Potentiometer Limits
 const int ELBOW_MIN = 150; //Limit values for sensor
-const int ELBOW_MAX = 640;
-const int SHOULDER_MIN = 600;
-const int SHOULDER_MAX = 400;
+const int ELBOW_MAX = 660;
+const int SHOULDER_MIN = 620;
+const int SHOULDER_MAX = 370;
 //Encoder Analog Limits
 //The encoders use the analog value from the opto-coupler sensor board. 
 //The Min/Max constants represent the "highest" and "lowest" analog values returned from the sensor. (These values can vary by sensor board and must be determined through testing.)
@@ -167,7 +167,7 @@ void armGripper(int gripState, int gripTime = ARMGRIPTIME); //gripState is OPEN 
 void armGripperManual(int gripState, int gripTime = ARMGRIPTIME); //special version of arm gripper funtion for manual remote control operation
 void wristRotate (int targetState, int wristDirection = CW, float wristRevolution = 0.0, int wristSpeed = 255);  //targetState is (V)ertical or (H)orizontal, wristRevolution is the number of full revolutions to be perfomed.
 void elbowMove(int elbowPosition = 500, int elbowSpeed = 65);  //default parameter values are approximate center position and preferred default speed.
-void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 127); //default parameter values are approximate center position and preferred default speed.
+void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 131); //default parameter values are approximate center position and preferred default speed.
 void turnTableMove(int turnDegrees = 0, int turnDirection = CW, int turnSpeed = 65);    //turnDegrees is the degrees of angular rotation from the current position
 void tailGripper(int gripState, int gripTime = TAILGRIPTIME); //gripState is OPEN (0) or CLOSE (1)
 void driveMove(int driveDistance = 20, int driveDirection = FW, int driveSpeed = 127);
@@ -204,7 +204,6 @@ void setup()
     Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
     while(1);
   }
-  delay(1000);
   bno.setExtCrystalUse(true);   //advanced setup (I don't know what this actually does)
   #endif
   
@@ -474,7 +473,7 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
         //Brake motor once target position is reached
         elbow.stop();
         elbow.run(-elbowSpeed); //Reverse motor direction to brake briefly
-        delay(20);
+        delay(10);
         elbow.run(0);    //Release motor by setting speed to zero
         elbow.stop();
         elbowState = 0;   //Set elbow as NOT MOVING
@@ -493,7 +492,7 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
 }
 
 
-void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 127) { //Default values allow the function to be called without arguments to reset to a default position (at the default speed).
+void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 131) { //Default values allow the function to be called without arguments to reset to a default position (at the default speed).
   if(runArray[3] == 1) {    //Check if movement is allowed
     int lastPosition = analogRead(SHOULDER_POT);   //read encoder position
     
@@ -510,9 +509,10 @@ void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 127) { //Defau
         //Brake motor once target position is reached
         shoulder.stop();
         shoulder.run(-shoulderSpeed); //Reverse motor direction to brake briefly
-        delay(30);
+        delay(10);
         shoulder.run(0);    //Release motor by setting speed to zero
         shoulder.stop();
+        delay(30);
         shoulderState = 0;   //Set shoulder as NOT MOVING
         Serial.print("Stopped DOWN!\n\n");
       }
@@ -531,9 +531,10 @@ void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 127) { //Defau
         //Brake motor once target position is reached
         shoulder.stop();
         shoulder.run(shoulderSpeed); //Reverse motor direction to brake briefly
-        delay(20);
+        delay(15);
         shoulder.run(0);    //Release motor by setting speed to zero
         shoulder.stop();
+        delay(30);
         shoulderState = 0;   //Set shoulder as NOT MOVING
         Serial.print("Stopped UP!\n\n");
       }
