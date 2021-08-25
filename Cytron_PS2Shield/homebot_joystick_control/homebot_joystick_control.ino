@@ -110,6 +110,7 @@ int wristSwitch = 0;  //state of wrist switch
 int wristState = H;   //state of wrist orientation (H or V), horizontal direction as default
 int elbowState = 0; //Initialize elbow as NOT MOVING
 int shoulderState = 0; //Initialize shoulder as NOT MOVING
+int turnTableState = 0; //Initialize shoulder as NOT MOVING
 int turnTableEncoder = 1; //state of turntable encoder as high(1) or low(0). Set initial state to 1 since this input pin is pulled high
 int turnTableSwitch = 0;  //state of turntable switch, default state is 0 (LOW)
 int turnTableHall = 1;    //state of turntable hall effect sensor, default state is HIGH, sensor pulls pin LOW when active (magnet present)
@@ -142,7 +143,7 @@ int runArray[] = {1,  //runArray[0]: armGripper
                   0,  //runArray[1]: wrist
                   1,  //runArray[2]: elbow
                   1,  //runArray[3]: shoulder
-                  0,  //runArray[4]: turntable
+                  1,  //runArray[4]: turntable
                   1,  //runArray[5]: tailGripper
                   0,  //runArray[6]: drive
                   0   //runArray[7]: sonar
@@ -155,7 +156,7 @@ int joystick_right_Y = 0;      //left joystick position in Y axis (FORWARD and B
 int joystick_right_X = 0;      //left joystick position in X axis (LEFT/CCW and RIGHT/CW)
 //int joystick_arm = 0;         //right joystick position in Y axis (UP and DOWN). TODO:Direction is inverted - pull back to lift UP
 int shoulder_lift_speed = 0;  //speed at which the arm "shoulder" moves up and down
-int shoulder_turn_speed = 0;
+int turntable_speed = 0;
 int elbow_lift_speed = 0;  //speed at which the arm "shoulder" moves up and down
 int wrist_turn_speed = 0;
 //int commandState = 0;         //Track if a command is currently being executed
@@ -338,10 +339,10 @@ void loop()
   }
   //Check for joystick movement beyond LEFT/RIGHT threshold
   if (joystick_left_X > 50 || joystick_left_X < -50) { 
-    shoulder_turn_speed = map(joystick_left_X, 0, 128, 0, 255); 
+    turntable_speed = map(joystick_left_X, 0, 128, 0, 255); 
   }  
   else {
-    shoulder_turn_speed = 0;    //if no detectable joystick movement
+    turntable_speed = 0;    //if no detectable joystick movement
   }
   //Check UP/DOWN direction
   if (shoulder_lift_speed != 0) {
@@ -363,37 +364,27 @@ void loop()
       Serial.print("UP/DOWN NEUTRAL!!\n");
   }
 
-//  //Check LEFT/RIGHT direction
-//  if(shoulder_turn_speed != 0) {
-//    //TURNING CW  (Joystick Right)
-//    if (shoulder_turn_speed > 0) {   //Check LEFT/RIGHT direction of joystick (RIGHT is greater than zero and moves the shoulder Clockwise)
-//      Serial.print("Right! ");
-//    }
-//    //TURNING CCW (Joystick Left)
-//    else if (shoulder_turn_speed < 0) {
-//      Serial.print("Left! ");
-//    }
-//    //Display additional information about the joystick input
-//    #ifdef DEBUG_JOYSTICK
-//    Serial.print("\t\t");
-//    Serial.print ("Lift: ");
-//    Serial.print (joystick_left_Y);
-//    Serial.print ("\t\t");
-//    Serial.print ("shoulder_lift_speed: ");
-//    Serial.print (shoulder_lift_speed);
-//    Serial.print ("\t\t");
-//    Serial.print ("Horizontal: ");
-//    Serial.print (joystick_left_X);
-//    Serial.print ("\t\t");
-//    Serial.print ("shoulder_turn_speed: ");
-//    Serial.print (shoulder_turn_speed);
-//    Serial.print ("\n");
-//    #endif
-//  }
-//  else if(shoulder_turn_speed == 0 && elbowState != 0) {
-//    //stop
-//    Serial.print("LEFT/RIGHT NEUTRAL!!\n");
-//  }
+  //Check LEFT/RIGHT direction
+  if (turntable_speed != 0) {
+    Serial.print("Left Joystick: ");
+    //MOVING CW (Joystick Right)
+    if (turntable_speed > 0) {   //Check LEFT/RIGHT direction of joystick (RIGHT is greater than zero and moves the shoulder CW)
+      Serial.print("CW! \n");
+      turnTableMove(45, CW);
+    }
+    //MOVING UP (Joystick Backward)
+    else if (turntable_speed < 0) {
+      Serial.print("CCW! \n");
+      turnTableMove(45, CCW);
+    }
+  }
+  else if(turntable_speed == 0 && turnTableState != 0) {
+    //Stop
+      turnTableMove(STOP);
+      turnTableState = 0;
+      turnTableCount = 0;
+      Serial.print("LEFT/RIGHT NEUTRAL!!\n");
+  }
 
   //Find RIGHT joystick distance from center position. Value of 128 is center in both X and Y axes.
   joystick_right_Y = 128 - ps2.readButton(PS2_JOYSTICK_RIGHT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
@@ -431,6 +422,95 @@ void loop()
     //Stop
       elbowMove(STOP);
       Serial.print("UP/DOWN NEUTRAL!!\n");
+  }
+}
+
+
+void turnTableMove(int turnDegrees = 0, int turnDirection = CW, int turnSpeed = 65) {   //the turntable will not move if no argument is given.
+  if(runArray[4] == 1) {    //Check flag to prevent unnecessary re-triggering of the function
+    float tickTarget = 1.0;   //number of encoder ticks required to perform the movement
+    float conversionRate = 14.0;
+
+    Serial.print("\n");
+    //Set sign of motor speed based on desired rotation direction
+    if(turnDirection == CW) {
+      turnSpeed = turnSpeed * -1;
+      conversionRate = 14.5;
+      Serial.println("Turntable CW");
+      Serial.print("Turn Degrees: ");
+      Serial.println(turnDegrees);
+    }
+    else {
+      conversionRate = 14.25;   //adjust tick taget due to tension from the main cable.
+      Serial.println("Turntable CCW");
+      Serial.print("Turn Degrees: ");
+      Serial.println(turnDegrees);
+    }
+    
+    //convert turnDegrees to encoder ticks (90 degrees is approximately 14 ticks)
+    if(turnDegrees == STOP) {
+      //Brake motor once encoder tick count is achaieved
+      turnTable.stop();
+      turnTable.run(-turnSpeed); //Reverse motor direction to brake briefly
+      delay(30);
+      turnTable.run(0);    //Release motor by setting speed to zero
+      turnTable.stop();
+      turnTableState = 0;
+      Serial.println("JOYSTICK STOPPED!");
+    }
+    else if(turnDegrees > 0) {
+      tickTarget = round((turnDegrees / 90.0) * conversionRate);  //round up to nearest integer value
+      Serial.print("Turn Degrees: ");
+      Serial.print(turnDegrees);
+      Serial.print("\n");
+      Serial.print("Conversion Rate: ");
+      Serial.print(conversionRate);
+      Serial.print("\n");
+      Serial.print("TickTarget: ");
+      Serial.print(tickTarget);
+      Serial.print("\n");
+      turnTable.run(turnSpeed);
+      turnTableState = 1;
+      if(turnTableCount < tickTarget) {
+        turnTableAnalog = analogRead(TURNTABLE_ENCODER);
+        if(turnTableAnalog > TURNTABLE_ANALOG_MAX && turnTableEncoder == 0) { //if encoder value passes the threshold for HIGH, and the current state of the sensor is LOW, set sensor state to HIGH and increment the tick count.
+          turnTableEncoder = 1;
+          turnTableCount++;   //Increment encoder tick count each time th sensor reads HIGH
+        }
+        else if(turnTableAnalog < TURNTABLE_ANALOG_MIN && turnTableEncoder == 1) {  //if encoder value goes below the threshold for LOW, and the current state of the sensor is HIGH, set the sensor state to LOW and wait for next trigger.
+          turnTableEncoder = 0;
+        }
+        Serial.print("Turntable: ");
+        Serial.print("A ");
+        Serial.print(turnTableAnalog);
+        Serial.print("\t");
+        Serial.print("E ");
+        Serial.print(turnTableEncoder);
+        Serial.print("\t");
+        Serial.print("C ");
+        Serial.println(turnTableCount);
+        delay (10);
+      }
+      else if(turnTableCount >= tickTarget && turnTableState > 0) {
+        //Brake motor once encoder tick count is achaieved
+        turnTable.stop();
+        turnTable.run(-turnSpeed); //Reverse motor direction to brake briefly
+        delay(30);
+        turnTable.run(0);    //Release motor by setting speed to zero
+        turnTable.stop();
+        turnTableState = 0;
+        Serial.println("COUNT STOPPED!");
+      }
+    }
+    else {
+      //Brake motor once encoder tick count is achaieved
+      turnTable.stop();
+      turnTable.run(-turnSpeed); //Reverse motor direction to brake briefly
+      delay(30);
+      turnTable.run(0);    //Release motor by setting speed to zero
+      turnTable.stop();
+      Serial.println("DEFAULT STOPPED!");
+    }
   }
 }
 
@@ -514,7 +594,7 @@ void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 131) { //Defau
         shoulder.stop();
         delay(30);
         shoulderState = 0;   //Set shoulder as NOT MOVING
-        Serial.print("Stopped DOWN!\n\n");
+        Serial.print("LIMIT DOWN!\n\n");
       }
     }
     else if(shoulderPosition == SHOULDER_MAX) {
@@ -536,7 +616,7 @@ void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 131) { //Defau
         shoulder.stop();
         delay(30);
         shoulderState = 0;   //Set shoulder as NOT MOVING
-        Serial.print("Stopped UP!\n\n");
+        Serial.print("LIMIT UP!\n\n");
       }
     }
     else if(shoulderPosition == STOP) {
