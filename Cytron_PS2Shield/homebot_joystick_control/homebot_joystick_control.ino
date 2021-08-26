@@ -95,6 +95,7 @@ const int SHOULDER_MAX = 370;
 //The resulting changes in state are counted as an encoder "ticks".
 const int TURNTABLE_ANALOG_MAX = 875;   
 const int TURNTABLE_ANALOG_MIN = 650;
+const int TURNTABLE_LIMIT = 28; //maximum number of encoder ticks for arm to travel 180 degrees
 const int DRIVE_LEFT_ANALOG_MAX = 700;
 const int DRIVE_LEFT_ANALOG_MIN = 400;
 const int DRIVE_RIGHT_ANALOG_MAX = 700;
@@ -117,7 +118,8 @@ int turnTableHall = 1;    //state of turntable hall effect sensor, default state
 int driveLeftEncoder = 1; //last state of encoder high(1) or low(0), for comparison with current state read from sensor
 int driveRightEncoder = 1;
 //Tracking variables
-int turnTableCount = 1;  //store encoder tick value of turntable position based on encoder ticks. Default to 1 for easier calculations (15 ticks ~ 90 degrees)
+int turnTableCount = 1;  //store encoder ticks for current amount of turntable travel based on encoder ticks. Default to 1 for easier calculations (15 ticks ~ 90 degrees)
+int turnTablePosition = 14;  //store current turn table position based on encoder ticks and turn table rotation limits
 int driveLeftCount = 0;  //store encoder tick value to track movement
 int driveRightCount = 0;
 int driveLeftAnalog = 0;  //last analog value from drive encoder, raw analog value is compared with the Min/Max constants to set current state of encoder
@@ -170,6 +172,7 @@ void wristRotate (int targetState, int wristDirection = CW, float wristRevolutio
 void elbowMove(int elbowPosition = 500, int elbowSpeed = 65);  //default parameter values are approximate center position and preferred default speed.
 void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 131); //default parameter values are approximate center position and preferred default speed.
 void turnTableMove(int turnDegrees = 0, int turnDirection = CW, int turnSpeed = 65);    //turnDegrees is the degrees of angular rotation from the current position
+void turnTableManual(int turnDegrees = 0, int turnDirection = CW, int turnSpeed = 65);    //special versin of turnTableMove for remote control operation
 void tailGripper(int gripState, int gripTime = TAILGRIPTIME); //gripState is OPEN (0) or CLOSE (1)
 void driveMove(int driveDistance = 20, int driveDirection = FW, int driveSpeed = 127);
 
@@ -370,20 +373,22 @@ void loop()
     //MOVING CW (Joystick Right)
     if (turntable_speed > 0) {   //Check LEFT/RIGHT direction of joystick (RIGHT is greater than zero and moves the shoulder CW)
       Serial.print("CW! \n");
-      turnTableMove(45, CW);
+      turnTableState = 1;
+      turnTableManual(turntable_speed);
     }
-    //MOVING UP (Joystick Backward)
+    //MOVING CCW (Joystick Left)
     else if (turntable_speed < 0) {
       Serial.print("CCW! \n");
-      turnTableMove(45, CCW);
+      turnTableState = -1;
+      turnTableManual(turntable_speed);
     }
   }
   else if(turntable_speed == 0 && turnTableState != 0) {
     //Stop
-      turnTableMove(STOP);
-      turnTableState = 0;
-      turnTableCount = 0;
-      Serial.print("LEFT/RIGHT NEUTRAL!!\n");
+    turnTableState = 0;
+    turnTableManual(STOP);
+    turnTableCount = 1; //Reset turnTableCount. Default to 1 for easier calculations (15 ticks ~ 90 degrees)
+    Serial.print("LEFT/RIGHT NEUTRAL!!\n");
   }
 
   //Find RIGHT joystick distance from center position. Value of 128 is center in both X and Y axes.
@@ -422,6 +427,98 @@ void loop()
     //Stop
       elbowMove(STOP);
       Serial.print("UP/DOWN NEUTRAL!!\n");
+  }
+}
+
+
+void turnTableManual(int turnDegrees = 0, int turnDirection = CW, int turnSpeed = 65) {
+  if(runArray[4] == 1) {    //Check flag to prevent unnecessary re-triggering of the function
+    float tickDistance = 0;   //store the distance to the limit of turntable travel measured in encoder ticks
+    float tickTarget = 1.0;   //number of encoder ticks required to perform the movement
+    float conversionRate = 14.0;
+
+    //get distance from curent position to endposition based on rotation direction
+    if(turnDegrees == STOP) {
+      //check motor direction based on turnTableState and brake by setting the motorspeed to the opposite motor direction
+      if(turnTableState == 1) {
+        turnTable.stop();
+        turnTable.run(-turnSpeed); //Reverse motor direction to brake briefly
+      }
+      else if(turnTableState == -1) {
+        turnTable.stop();
+        turnTable.run(turnSpeed); //Reverse motor direction to brake briefly
+      }
+      delay(30);
+      turnTable.run(0);    //Release motor by setting speed to zero
+      turnTable.stop();
+      Serial.print("Turntable Position: ");
+      Serial.println(turnTablePosition);
+      Serial.println("JOYSTICK STOPPED!");
+    }
+    else if(turnDegrees > 0 && turnTableState != 0) {   //if rotating CW
+      tickDistance = TURNTABLE_LIMIT - turnTablePosition; //get rotatin distance (with zero being toward tail gripper
+      conversionRate = 14.5;
+      turnTable.run(-turnSpeed);
+      Serial.println("Turntable CW");
+      Serial.print("Tick Distance: ");
+      Serial.print(tickDistance);
+      Serial.print("\n");
+    }
+    else if(turnDegrees < 0 && turnTableState != 0) {   //if rotating CCW
+      tickDistance = turnTablePosition;
+      conversionRate = 14.25;   //adjust tick taget due to tension from the main cable.
+      turnTable.run(turnSpeed);
+      Serial.println("Turntable CCW");
+      Serial.print("Tick Distance: ");
+      Serial.print(tickDistance);
+      Serial.print("\n");
+    }
+    //increment tickCount and turnTablePosition as turntable rotates
+    if(turnTableCount < tickDistance) {
+      turnTableAnalog = analogRead(TURNTABLE_ENCODER);
+      if(turnTableAnalog > TURNTABLE_ANALOG_MAX && turnTableEncoder == 0) { //if encoder value passes the threshold for HIGH, and the current state of the sensor is LOW, set sensor state to HIGH and increment the tick count.
+        turnTableEncoder = 1;
+        turnTableCount++;   //Increment encoder tick count each time th sensor reads HIGH
+        //Upstate turnTablePosition
+        if(turnTableState > 0) {
+          turnTablePosition++;
+        }
+        else if(turnTableState < 0) {
+          turnTablePosition--;
+        }
+      }
+      else if(turnTableAnalog < TURNTABLE_ANALOG_MIN && turnTableEncoder == 1) {  //if encoder value goes below the threshold for LOW, and the current state of the sensor is HIGH, set the sensor state to LOW and wait for next trigger.
+        turnTableEncoder = 0;
+      }
+      Serial.print("Turntable: ");
+      Serial.print("A ");
+      Serial.print(turnTableAnalog);
+      Serial.print("\t");
+      Serial.print("E ");
+      Serial.print(turnTableEncoder);
+      Serial.print("\t");
+      Serial.print("C ");
+      Serial.println(turnTableCount);
+      delay (10);
+    }
+    else if(turnTableCount >= tickDistance && turnTableState != 0) {
+      //check motor direction based on turnTableState and brake by setting the motorspeed to the opposite motor direction
+      if(turnTableState == 1) {
+        turnTable.stop();
+        turnTable.run(-turnSpeed); //Reverse motor direction to brake briefly
+      }
+      else if(turnTableState == -1) {
+        turnTable.stop();
+        turnTable.run(turnSpeed); //Reverse motor direction to brake briefly
+      }
+      delay(30);
+      turnTable.run(0);    //Release motor by setting speed to zero
+      turnTable.stop();
+      turnTableState = 0;
+      Serial.println("COUNT STOPPED!");
+      Serial.print("Turntable Position: ");
+      Serial.println(turnTablePosition);
+    }
   }
 }
 
