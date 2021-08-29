@@ -95,7 +95,7 @@ const int SHOULDER_MAX = 370;
 //The resulting changes in state are counted as an encoder "ticks".
 const int TURNTABLE_ANALOG_MAX = 875;   
 const int TURNTABLE_ANALOG_MIN = 650;
-const int TURNTABLE_LIMIT = 26; //maximum number of encoder ticks for arm to travel 180 degrees
+const int TURNTABLE_LIMIT = 28; //maximum number of encoder ticks for arm to travel 180 degrees
 const int DRIVE_LEFT_ANALOG_MAX = 700;
 const int DRIVE_LEFT_ANALOG_MIN = 400;
 const int DRIVE_RIGHT_ANALOG_MAX = 700;
@@ -123,7 +123,7 @@ int driveRightEncoder = 1;
 int turnTableCount = 1;  //store encoder ticks for current amount of turntable travel based on encoder ticks. Default to 1 for easier calculations (15 ticks ~ 90 degrees)
 int turnTableTarget = 0;   //track whether the a turnTable limit has been reached. (0 = FALSE, 1 = TRUE)
 //TODO: Set turnTablePosition to zero
-int turnTablePosition = 13;  //store current turn table position based on encoder ticks and turn table rotation limits
+int turnTablePosition = 14;  //store current turn table position based on encoder ticks and turn table rotation limits
 int driveLeftCount = 0;  //store encoder tick value to track movement
 int driveRightCount = 0;
 int driveLeftAnalog = 0;  //last analog value from drive encoder, raw analog value is compared with the Min/Max constants to set current state of encoder
@@ -477,6 +477,7 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
     Serial.print("\n");
     
     //increment tickCount and turnTablePosition as turntable rotates
+    //TODO: Add if clause to check for tuntable hall effect sensor.
     if(targetDistance > 0) {    //Check if turnTablePosition is still some distance away from the limit
       Serial.print("TurnTableState at targetDistance > 0: ");
       Serial.println(turnTableState);
@@ -637,7 +638,7 @@ void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 131) { //Defau
         //Brake motor once target position is reached
         shoulder.stop();
         shoulder.run(-shoulderSpeed); //Reverse motor direction to brake briefly
-        delay(10);
+        delay(15);
         shoulder.run(0);    //Release motor by setting speed to zero
         shoulder.stop();
         delay(30);
