@@ -110,7 +110,9 @@ int tailGripState = 1;  //Default to "closed"
 int wristSwitch = 0;  //state of wrist switch
 int wristState = H;   //state of wrist orientation (H or V), horizontal direction as default
 int elbowState = 0; //Initialize elbow as NOT MOVING
+int elbowDirection = 0; //Initialize elbow as NOT MOVING
 int shoulderState = 0; //Initialize shoulder as NOT MOVING
+int shoulderDirection = 0;  //Initialize shoulder direction as NEUTRAL
 int turnTableState = 0; //Initialize shoulder as NOT MOVING
 int turnTableEncoder = 1; //state of turntable encoder as high(1) or low(0). Set initial state to 1 since this input pin is pulled high
 int turnTableSwitch = 0;  //state of turntable switch, default state is 0 (LOW)
@@ -335,38 +337,38 @@ void loop()
   joystick_left_Y = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
   joystick_left_X = ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT/RotateCW is positive)
 
-  //Check for joystick movement beyond UP/DOWN threshold
+  //Get Shoulder LIFT speed. Check for joystick movement beyond UP/DOWN dead zone.
   if (joystick_left_Y > 50 || joystick_left_Y < -50) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for DOWN and UP. Defaults to 50 for both.).
     shoulder_lift_speed = map(joystick_left_Y, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (from center to extremity)
   }
   else {
     shoulder_lift_speed = 0;    //if no detectable joystick movement
   }
-  //Check for joystick movement beyond LEFT/RIGHT threshold
+  //Get Shoulder TURN speed. Check for joystick movement beyond LEFT/RIGHT dead zone.
   if (joystick_left_X > 50 || joystick_left_X < -50) { 
     turntable_speed = map(joystick_left_X, 0, 128, 0, 255); 
   }  
   else {
     turntable_speed = 0;    //if no detectable joystick movement
   }
-  //Check UP/DOWN direction
+  //Check LIFT direction
   if (shoulder_lift_speed != 0) {
     Serial.print("Left Joystick: ");
     //MOVING DOWN (Joystick Forward)
     if (shoulder_lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
       Serial.print("Down! \n");
-      shoulderMove(SHOULDER_MIN);
+      shoulderMove(SHOULDER_MIN);   //Limit for the shoulder joint's lowest position
     }
     //MOVING UP (Joystick Backward)
     else if (shoulder_lift_speed < 0) {
       Serial.print("Up! \n");
-      shoulderMove(SHOULDER_MAX);
+      shoulderMove(SHOULDER_MAX);   //Limit for the shoulder joint's highest position
     }
   }
   else if(shoulder_lift_speed == 0 && shoulderState != 0) {
     //Stop
-      shoulderMove(STOP);
-      Serial.print("UP/DOWN NEUTRAL!!\n");
+    shoulderMove(STOP);
+    Serial.print("UP/DOWN NEUTRAL!!\n");
   }
 
   //Check LEFT/RIGHT direction
@@ -397,14 +399,14 @@ void loop()
   joystick_right_Y = 128 - ps2.readButton(PS2_JOYSTICK_RIGHT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
   joystick_right_X = ps2.readButton(PS2_JOYSTICK_RIGHT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT/RotateCW is positive)
 
-  //Check for joystick movement beyond UP/DOWN threshold
+  //Check for joystick movement beyond UP/DOWN dead zone
   if (joystick_right_Y > 50 || joystick_right_Y < -50) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for DOWN and UP. Defaults to 50 for both.).
     elbow_lift_speed = map(joystick_right_Y, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (from center to extremity)
   }
   else {
     elbow_lift_speed = 0;    //if no detectable joystick movement
   }
-  //Check for joystick movement beyond LEFT/RIGHT threshold
+  //Check for joystick movement beyond LEFT/RIGHT dead zone
   if (joystick_right_X > 50 || joystick_right_X < -50) { 
     wrist_turn_speed = map(joystick_right_X, 0, 128, 0, 255); 
   }  
@@ -539,6 +541,7 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
     if(elbowPosition == ELBOW_MIN) {   //Check if command is to move "down"
       if(lastPosition > ELBOW_MIN) {  //check if elbow has reached lower limit
         elbow.run(-elbowSpeed);
+        elbowDirection = -1;
         elbowState = -1;   //Set elbow as MOVING DOWN
         Serial.print("Elbow DOWN\t");
         Serial.print("Target Position: ");
@@ -552,13 +555,14 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
         delay(30);
         elbow.run(0);    //Release motor by setting speed to zero
         elbow.stop();
-        elbowState = 0;   //Set elbow as NOT MOVING
+        elbowState = 0;   //Set elbow as NOT MOVING to prevent retrigger if joystick held in same position
         Serial.print("Stopped DOWN!\n\n");
       }
     }
     else if(elbowPosition == ELBOW_MAX) {
       if(lastPosition < ELBOW_MAX) {  //check if elbow has reached lower limit
         elbow.run(elbowSpeed);
+        elbowDirection = 1;
         elbowState = 1;   //Set elbow as MOVING UP
         Serial.print("\n");
         Serial.print("Elbow UP\t");
@@ -573,17 +577,34 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
         delay(10);
         elbow.run(0);    //Release motor by setting speed to zero
         elbow.stop();
-        elbowState = 0;   //Set elbow as NOT MOVING
+        elbowState = 0;   //Set elbow as NOT MOVING to prevent retrigger if joystick held in same position
         Serial.print("Stopped UP!\n\n");
       }
     }
     else if(elbowPosition == STOP) {
       //Brake motor once target position is reached
-      elbow.stop();
-      elbow.run(0);    //Release motor by setting speed to zero
-      elbow.stop();
+      if(elbowDirection > 0) {
+        elbow.stop();
+        elbow.run(-elbowSpeed); //Reverse motor speed (based on elbowDirection) to brake briefly
+        delay(10);
+        elbow.run(0);    //Release motor by setting speed to zero
+        elbow.stop();
+      }
+      else if(elbowDirection < 0) {
+        elbow.stop();
+        elbow.run(elbowSpeed); //Reverse motor speed (based on elbowDirection)
+        delay(10);
+        elbow.run(0);    //Release motor by setting speed to zero
+        elbow.stop();
+      }
+      else {  //if elbowDirection cannot be determined, stop without braking
+        elbow.stop();
+        elbow.run(0);    //Release motor by setting speed to zero
+        elbow.stop();
+      }
+      delay(30);
       elbowState = 0;   //Set elbow as NOT MOVING
-      Serial.print("JOYSTICK NEUTRAL!\n\n");
+      Serial.print("RIGHT JOYSTICK LIFT NEUTRAL!\n\n");
     }
   }
 }
@@ -594,15 +615,16 @@ void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 131) { //Defau
     int lastPosition = analogRead(SHOULDER_POT);   //read encoder position
     
     if(shoulderPosition == SHOULDER_MIN) {   //Check if command is to move "down"
-      if(lastPosition < SHOULDER_MIN) {  //check if shoulder has reached lower limit
-        shoulder.run(shoulderSpeed);
-        shoulderState = 1;   //Set shoulder as MOVING DOWN
+      if(lastPosition < SHOULDER_MIN) {  //check if shoulder has reached lower limit. lastPosition increases as shoulder lowers
+        shoulder.run(shoulderSpeed);  //Positive motor speed when moving down
+        shoulderDirection = 1;  //set to 1 for "positive" motor speed
+        shoulderState = -1;   //Set shoulder as MOVING DOWN
         Serial.print("Shoulder DOWN\t");
         Serial.print("Target Position: ");
         Serial.print(lastPosition);
         Serial.print("\n\n");
       }
-      else if(lastPosition >= SHOULDER_MIN && shoulderState == 1) {    //only stop motor is running. This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
+      else if(lastPosition >= SHOULDER_MIN && shoulderState == -1) {    //Only stop if shoulderState has been set to "moving down". This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
         //Brake motor once target position is reached
         shoulder.stop();
         shoulder.run(-shoulderSpeed); //Reverse motor direction to brake briefly
@@ -610,21 +632,22 @@ void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 131) { //Defau
         shoulder.run(0);    //Release motor by setting speed to zero
         shoulder.stop();
         delay(30);
-        shoulderState = 0;   //Set shoulder as NOT MOVING
+        shoulderState = 0;   //Set shoulder as NOT MOVING to prevent retrigger is joystick is held in the same direction
         Serial.print("LIMIT DOWN!\n\n");
       }
     }
     else if(shoulderPosition == SHOULDER_MAX) {
-      if(lastPosition > SHOULDER_MAX) {  //check if shoulder has reached lower limit
-        shoulder.run(-shoulderSpeed);
-        shoulderState = -1;   //Set shoulder as MOVING UP
+      if(lastPosition > SHOULDER_MAX) {  //check if shoulder has reached upper limit. lastPosition decreases as shoulder rises.
+        shoulder.run(-shoulderSpeed); //Negative speed when moving upward
+        shoulderDirection = -1;   //set to -1 for "negative" motor speed
+        shoulderState = 1;   //Set shoulder as MOVING UP
         Serial.print("\n");
         Serial.print("Shoulder UP\t");
         Serial.print("Target Position: ");
         Serial.print(lastPosition + 1);
         Serial.print("\n");
       }
-      else if(lastPosition <= SHOULDER_MAX && shoulderState == -1) {    //only stop motor is running. This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
+      else if(lastPosition <= SHOULDER_MAX && shoulderState == 1) {    //Only stop if shoulderState has been set to "moving upward". This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
         //Brake motor once target position is reached
         shoulder.stop();
         shoulder.run(shoulderSpeed); //Reverse motor direction to brake briefly
@@ -638,11 +661,29 @@ void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 131) { //Defau
     }
     else if(shoulderPosition == STOP) {
       //Brake motor once target position is reached
-      shoulder.stop();
-      shoulder.run(0);    //Release motor by setting speed to zero
-      shoulder.stop();
+      //check motor direction
+      if(shoulderDirection > 0) {
+        shoulder.stop();
+        shoulder.run(-shoulderSpeed); //Reverse motor speed (based on shoulderDirection) to brake briefly
+        delay(10);
+        shoulder.run(0);    //Release motor by setting speed to zero
+        shoulder.stop();
+      }
+      else if(shoulderDirection < 0) {
+        shoulder.stop();
+        shoulder.run(shoulderSpeed); //Reverse motor speed (based on shoulderDirection)
+        delay(10);
+        shoulder.run(0);    //Release motor by setting speed to zero
+        shoulder.stop();
+      }
+      else {  //if shoulderDirection cannot be determined, stop without braking
+        shoulder.stop();
+        shoulder.run(0);    //Release motor by setting speed to zero
+        shoulder.stop();
+      }
+      delay(30);
       shoulderState = 0;   //Set shoulder as NOT MOVING
-      Serial.print("JOYSTICK NEUTRAL!\n\n");
+      Serial.print("LEFT JOYSTICK LIFT NEUTRAL!\n\n");
     }
   }
 }
