@@ -464,14 +464,12 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
     else if(commandState > 0 && turnTableState != 0) {   //The turnTableState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection
       targetDistance = TURNTABLE_LIMIT - turnTablePosition; //get rotation distance (with zero being toward tail gripper)
       conversionRate = 14.5;
-      turnTable.run(-turnSpeed);    //Unintuitive negative motor speed for clockwise direction based on actual motor wire connections
       Serial.println("Turntable CW");
     }
     //if rotating CCW
     else if(commandState < 0 && turnTableState != 0) {   //The turnTableState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection.
       targetDistance = turnTablePosition;
       conversionRate = 14.25;   //adjust tick taget due to tension from the main cable.
-      turnTable.run(turnSpeed);    //Unintuitive positive motor speed for counter-clockwise direction based on actual motor wire connections
       Serial.println("Turntable CCW");
     }
     Serial.print("Target Distance: ");
@@ -482,7 +480,16 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
     if(targetDistance > 0) {    //Check if turnTablePosition is still some distance away from the limit
       Serial.print("TurnTableState at targetDistance > 0: ");
       Serial.println(turnTableState);
+      //Activate motor in the desired direction
       turnTableTarget = 0;    //Reset turnTableTarget flag if there is distance between the turntable limit and turnTablePosition
+      if(turnTableState == 1) {
+        turnTable.run(-turnSpeed);    //Unintuitive negative motor speed for clockwise direction based on actual motor wire connections
+      }
+      else if(turnTableState == -1) {
+        turnTable.run(turnSpeed);    //Unintuitive positive motor speed for counter-clockwise direction based on actual motor wire connections
+      }
+      
+      //Read turntable encoder
       turnTableAnalog = analogRead(TURNTABLE_ENCODER);
       //Check if encoder signal HIGH
       if(turnTableAnalog > TURNTABLE_ANALOG_MAX && turnTableEncoder == 0) { //if encoder value passes the threshold for HIGH, and the current state of the sensor is LOW, set sensor state to HIGH and increment the tick count.
@@ -511,6 +518,7 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
       Serial.println(turnTableCount);
       delay (10);
     }
+    //If target limit reached
     else if(targetDistance <= 0 && turnTableTarget != 1) {
       Serial.print("TurnTableState Count Greater: ");
       Serial.println(turnTableState);
@@ -527,7 +535,7 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
       turnTable.run(0);    //Release motor by setting speed to zero
       turnTable.stop();
       turnTableTarget = 1;   //Reset turnTableState to prevent this clause from running again if jystick is still held a movement direction after count has been reached
-      Serial.println("COUNT STOPPED!");
+      Serial.println("LIMIT REACHED!");
       Serial.print("Turntable Position: ");
       Serial.println(turnTablePosition);
     }
