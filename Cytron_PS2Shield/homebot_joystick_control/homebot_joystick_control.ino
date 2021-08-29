@@ -119,6 +119,7 @@ int driveLeftEncoder = 1; //last state of encoder high(1) or low(0), for compari
 int driveRightEncoder = 1;
 //Tracking variables
 int turnTableCount = 1;  //store encoder ticks for current amount of turntable travel based on encoder ticks. Default to 1 for easier calculations (15 ticks ~ 90 degrees)
+int turnTableTarget = 0;   //track whether the a turnTable limit has been reached. (0 = FALSE, 1 = TRUE)
 //TODO: Set turnTablePosition to zero
 int turnTablePosition = 13;  //store current turn table position based on encoder ticks and turn table rotation limits
 int driveLeftCount = 0;  //store encoder tick value to track movement
@@ -437,7 +438,6 @@ void turnTableManual(int commandState = 0, int turnDirection = CW, int turnSpeed
   Serial.println(turnTableState);
   if(runArray[4] == 1) {    //Check flag to prevent unnecessary re-triggering of the function
     float tickDistance = 0;   //store the distance to the limit of turntable travel measured in encoder ticks
-    float tickTarget = 1.0;   //number of encoder ticks required to perform the movement
     float conversionRate = 14.0;
 
     //if Stopped
@@ -508,7 +508,7 @@ void turnTableManual(int commandState = 0, int turnDirection = CW, int turnSpeed
       Serial.println(turnTableCount);
       delay (10);
     }
-    else if(tickDistance <= 0 && turnTableCount <= 1) {
+    else if(tickDistance <= 0 && turnTableTarget != 1) {
       Serial.print("TurnTableState Count Greater: ");
       Serial.println(turnTableState);
       //check motor direction based on turnTableState and brake by setting the motorspeed to the opposite motor direction
@@ -523,7 +523,7 @@ void turnTableManual(int commandState = 0, int turnDirection = CW, int turnSpeed
       delay(10);
       turnTable.run(0);    //Release motor by setting speed to zero
       turnTable.stop();
-      turnTableState = 0;   //Reset turnTableState to prevent this clause from running again if jystick is still held a movement direction after count has been reached
+      turnTableTarget = 1;   //Reset turnTableState to prevent this clause from running again if jystick is still held a movement direction after count has been reached
       Serial.println("COUNT STOPPED!");
       Serial.print("Turntable Position: ");
       Serial.println(turnTablePosition);
