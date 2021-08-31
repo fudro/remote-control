@@ -737,7 +737,7 @@ void turnTableReset() {
     delay(30);
     turnTable.run(0);    //Release motor by setting speed to zero
     turnTable.stop();
-
+    turnTablePosition = 0;
 //    runArray[3] = 1;  //reset shoulder motor flag to active so the shoulderMove function can run again
 //    shoulderMove();
     Serial.print("\n");
