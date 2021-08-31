@@ -381,6 +381,7 @@ void loop()
     delay(10);
     if(ps2.readButton(PS2_JOYSTICK_LEFT) == 0 && joystickLeftState == 0) { //double check button to prevent false trigger
       joystickLeftState = 1;
+      turnTableReset();
       Serial.println("Left Joystick Pressed!");
     }
   }
@@ -510,6 +511,164 @@ void loop()
 }
 
 
+/*
+ * Rotate wrist by declaring the desired orientation state (REQUIRED), a rotation direction, the number of complete revolutions, and the desired speed.
+ */
+void wristRotate(int targetState, int wristDirection = CW, float wristRevolution = 0.0, int wristSpeed = 255) {
+  if(runArray[1] == 1) {    //Check flag to prevent unnecessary re-triggering of the function
+    int count = 0;    //iterator variable to count the number of hardware screws passed during rotation (number of times the wrist switch is activated)
+    float switchCount = 0;  //number of times the wrist switch is activated. 
+
+    Serial.print("\n");
+    Serial.print("Wrist Rotation!");
+    Serial.print("\n");
+    Serial.print("Wrist Direction: ");
+    if(wristDirection == CW) {
+      Serial.print("CW");
+    }
+    else if(wristDirection == CCW) {
+      Serial.print("CCW");
+    }
+    Serial.print("\n");
+    Serial.print("Target Orientation: ");
+    if(targetState == H) {
+      Serial.print("H");
+    }
+    else if(targetState == V) {
+      Serial.print("V");
+    }
+    Serial.print("\n");
+    
+    //Update wristState
+    if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == LOW) {  //If switch AND hall effect sensors are both "activated" (hall sensor is LOW when active), gripper is HORIZONTAL (H)
+      wristState = H;
+    }
+    else if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == HIGH) { //If switch is activated (HIGH) but hall effect sensor is NOT (hall sensor is LOW when active), gripper is VERTICAL (V)
+      wristState = V;
+    }
+    Serial.print("Start Orientation: ");
+    if(wristState == H) {
+      Serial.print("H");
+    }
+    else if(wristState == V) {
+      Serial.print("V");
+    }
+    Serial.print("\n");
+    Serial.print("Switch State: ");
+    Serial.print(digitalRead(WRIST_SWITCH));
+    Serial.print("\n");
+    Serial.print("\n");
+
+    //Set sign of motor speed based on desired rotation direction
+    if(wristDirection == CCW) {   //rotation direction is determined as if the arm is a part of your body an you are looking down the arm toward the gripper
+      wristSpeed = wristSpeed * -1;
+    }
+    //Convert wristRevolution value to required count of switch activations (number of hardware screws that must be passed during rotation)
+    switchCount = int(wristRevolution * 4);   //There are 4 hardware screws per one revolution. A fractional value for wristRevolution will produce an integer value less than 4.
+    Serial.print("Switch Count: ");
+    Serial.print(switchCount);
+    Serial.print("\n");
+    Serial.print("\n");
+    //Initialize wrist postion to the nearest cardinal position (determined by switch activation by one of 4 hardware screws combined with state of hall effect sensor)
+    if(digitalRead(WRIST_SWITCH) == LOW){     //If switch starts in UNPRESSED (LOW) state (switch is NOT currently positioned over a hardware screw)
+      armWrist.run(wristSpeed);               //Run motor until a switch is activated (which means wrist is in one of the cardinal directions)
+      while(digitalRead(WRIST_SWITCH) == LOW) {
+        //Wait for switch to go HIGH (switch is PRESSED)
+      }
+      delay(50);  //Insert slight delay to allow switch roller to fully seat over the hardware screw.
+      //Brake motor once switch is activated
+      armWrist.stop();
+      armWrist.run(-wristSpeed); //Breifly reverse motor direction to brake
+      delay(30);
+      armWrist.run(0);    //Release motor by setting speed to zero
+      armWrist.stop();
+
+      //Update wristState
+      if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == LOW) {  //If switch AND hall effect sensors are both "activated" (hall sensor is LOW when active), gripper is HORIZONTAL (H)
+        wristState = H;
+      }
+      else if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == HIGH) { //If switch is activated (HIGH) but hall effect sensor is NOT (hall sensor is LOW when active), gripper is VERTICAL (V)
+        wristState = V;
+      }
+      if(wristState == targetState && switchCount < 1) {    //if wrist was already in the desired orientation (wrist did not need to move), set flag that movement is finished
+        runArray[1] = 0;
+      }
+    }
+    else if(digitalRead(WRIST_SWITCH) == HIGH){ //If switch starts in PRESSED state (switch IS currently positioned over a hardware screw)
+      if(wristState == targetState && switchCount < 1) {    //Check if the wrist is already in the desired target state and no additional rotation is required, set flag that movement is finished
+        runArray[1] = 0;
+      }
+      else {    //otherwise, if wrist movement IS required...
+        if(switchCount >= 1) {
+          armWrist.run(wristSpeed);
+          while(count < switchCount){   //Wait to pass through the required number of screws
+            while(digitalRead(WRIST_SWITCH) == HIGH) {
+              //Wait for switch to deactivate (move off of current screw position)
+            }
+            while(digitalRead(WRIST_SWITCH) == LOW) {
+              //Wait for switch to re-activate (move onto the next screw position)
+            }
+            count++;    //Update count for each new screw detected during rotation
+            Serial.print("Switch Count: ");
+            Serial.print(switchCount);
+            Serial.print("\t");
+            Serial.print("Current Count: ");
+            Serial.print(count);
+            Serial.print("\n");
+          }
+          delay(50);  //Insert slight delay to allow switch roller to fully seat over the hardware screw.
+          //Brake motor once correct number of screws are passed through
+          armWrist.stop();
+          armWrist.run(-wristSpeed); //Brake
+          delay(30);
+          armWrist.run(0);
+          armWrist.stop();
+  
+          //Update wristState once required rotation has completed
+          if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == LOW) {  //If switch AND hall effect are "activated" (hall sensor is LOW when active), gripper is HORIZONTAL (H)
+            wristState = H;
+          }
+          else if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == HIGH) { //If switch is activated but hall effect sensor is NOT (hall sensor is LOW when active), gripper is VERTICAL (V)
+            wristState = V;
+          }
+        }
+      }
+      
+      if(wristState == targetState) { //If targetState has been achieved after rotation, set flag to finish routine and prevent function from re-running
+        runArray[1] = 0;
+      }
+      else {    //If target state has NOT been achieved after rotation
+        armWrist.run(wristSpeed);   //Run motor until switch is re-activated (which means wrist has rotated 90 degrees to a new cardinal direction but different from the last)
+        while(digitalRead(WRIST_SWITCH) == HIGH) {
+          //Wait for switch to deactivate
+        }
+        while(digitalRead(WRIST_SWITCH) == LOW) {
+          //Wait for switch to re-activate
+        }
+        delay(50);  //Insert slight delay to allow switch roller to fully seat over the hardware screw.
+        //Brake motor once switch is activated
+        armWrist.stop();
+        armWrist.run(-wristSpeed); //Reverse motor direction to brake briefly
+        delay(30);
+        armWrist.run(0);    //Release motor by setting speed to zero
+        armWrist.stop();
+  
+        //Update wristState
+        if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == LOW) {  //If switch AND hall effect are "activated" (hall effect sensor is LOW when activated), gripper is HORIZONTAL (H)
+          wristState = H;
+        }
+        else if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == HIGH) { //If switch is activated but hall effect sensor is NOT (hall effect sensor is LOW when activated), gripper is VERTICAL (V)
+          wristState = V;
+        }
+        if(wristState == targetState) { //If targetState has been achieved after rotation, set flag to finish routine and prevent function from re-running
+          runArray[1] = 0;
+        }
+      }
+    }
+  }
+}
+
+//TODO: Fix errors. currently cannot reset if manually driven to far limit (turns in the wrong direction)
 void turnTableReset() {
   if(runArray[4] == 1) {    //Check flag to prevent unnecessary re-triggering of the function
     shoulderMove(400);      //lift shoulder   
@@ -571,8 +730,7 @@ void turnTableReset() {
     runArray[3] = 1;  //reset shoulder motor flag to active so the shoulderMove function can run again
     shoulderMove();
     Serial.print("\n");
-    Serial.print("Turntable and Arm at Zero Position!");
-    runArray[4] = 0;
+    Serial.println("Turntable and Arm at Zero Position!");
   }
 }
 
