@@ -678,21 +678,27 @@ void wristRotate(int targetState, int wristDirection = CW, float wristRevolution
   }
 }
 
-//TODO: Fix errors. currently cannot reset if manually driven to far limit (turns in the wrong direction)
-//POTENTIAL FIXES MADE. NEED TO TEST!!
+
 void turnTableReset() {
   if(runArray[4] == 1) {    //Check flag to prevent unnecessary re-triggering of the function
-    shoulderMove(400);      //lift shoulder   
-    elbowMove();            //center elbow 
     Serial.print("\n");
     Serial.println("Turntable Reset!");
     Serial.print("\n");
     int turnSpeed = 65;   //Set to one quarter maximum speed
-    //Default direction is CCW which is what we want so no change necessary.
-    turnTable.run(turnSpeed);
+    
+    Serial.print("Turntable Switch at Reset Start: ");
+    Serial.print(turnTableSwitch);
+    Serial.print("\n");
+
+    Serial.print("Turntable Hall at Reset Start: ");
+    Serial.print(turnTableHall);
+    Serial.print("\n");
+    
+    turnTable.run(turnSpeed);   //Default direction is CCW which is what we want so no change necessary.
     while (turnTableSwitch < 1) {   //while turntable switch is not activated.
       turnTableSwitch = digitalRead(TURNTABLE_SWITCH);
       if(turnTableSwitch > 0) { //if turntable reaches physical limit (indicated by switch HIGH), then stop motor.
+        turnTableHall = digitalRead(TURNTABLE_HALL);    //Read hall effect sensor which effectively resets it since it should NOT be active when the limit switch is active
         //Brake motor once limit switch is activated
         turnTable.stop();
         turnTable.run(-turnSpeed); //Reverse motor direction to brake briefly
@@ -700,34 +706,26 @@ void turnTableReset() {
         turnTable.run(0);    //Release motor by setting speed to zero
         turnTable.stop();
       }
-      Serial.print("Turntable Switch: ");
-      Serial.print(turnTableSwitch);
-      Serial.print("\n");
-      
       delay (10);
     }
-//    //Brake motor once encoder tick count is achaieved
-//    turnTable.stop();
-//    turnTable.run(-turnSpeed); //Reverse motor direction to brake briefly
-//    delay(30);
-//    turnTable.run(0);    //Release motor by setting speed to zero
-//    turnTable.stop();
+    Serial.print("Turntable Switch at Reset Limit: ");
+    Serial.print(turnTableSwitch);
+    Serial.print("\n");
+
+    Serial.print("Turntable Hall at Reset Limit: ");
+    Serial.print(turnTableHall);
+    Serial.print("\n");
+    
     delay(1000);
 
-    //Rotate CW until both turntable switch and hall effect sensor are LOW
-//    //Set direction for CCW
-//    turnSpeed = turnSpeed * -1;
     Serial.print("\n");
     Serial.println("Turntable to: Zero Position");
     Serial.print("\n");
-    turnTable.run(-turnSpeed);
-    while (turnTableHall > 0) {   //while turntable switch is not activated.
+    turnTable.run(-turnSpeed);  //Rotate CW until both turntable switch and hall effect sensor are LOW
+    while (turnTableHall > 0) {   //while turntable hall effect sensor is not activated.
+      //update sensor states
       turnTableHall = digitalRead(TURNTABLE_HALL);
-      
-      Serial.print("Turntable Hall: ");
-      Serial.print(turnTableHall);
-      Serial.print("\n");
-      
+      turnTableSwitch = digitalRead(TURNTABLE_SWITCH);
       delay (10);
     }
     delay(100); //pause briefly to allow arm to truly center. extra time is required due to detection angle of sensor and arm turn speed.
@@ -738,8 +736,15 @@ void turnTableReset() {
     turnTable.run(0);    //Release motor by setting speed to zero
     turnTable.stop();
     turnTablePosition = 0;
-//    runArray[3] = 1;  //reset shoulder motor flag to active so the shoulderMove function can run again
-//    shoulderMove();
+
+    Serial.print("Turntable Hall at Reset End: ");
+    Serial.print(turnTableHall);
+    Serial.print("\n");
+
+    Serial.print("Turntable Switch at Reset End: ");
+    Serial.print(turnTableSwitch);
+    Serial.print("\n");
+    
     Serial.print("\n");
     Serial.println("Turntable and Arm at Zero Position!");
   }
@@ -770,7 +775,7 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
       Serial.println("JOYSTICK STOPPED!");
     }
     //if rotating CW
-    else if(commandState > 0 && turnTableState != 0) {   //The turnTableState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection
+    else if(commandState > 0 && turnTableState != 0) {   //The turnTableState flag prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection
       targetDistance = TURNTABLE_LIMIT - turnTablePosition; //get rotation distance (with zero being toward tail gripper)
       conversionRate = 14.5;
       Serial.println("Turntable CW");
@@ -854,8 +859,7 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
       Serial.println(turnTableCount);
       delay (10);
     }
-    //If target limit reached
-    else if(targetDistance <= 0 && turnTableTarget != 1) {
+    else if(targetDistance <= 0 && turnTableTarget != 1) {  //If target limit has been reached for the first time (as indicated by turnTableTarget flag)
       //check motor direction based on turnTableState and brake by setting the motorspeed to the opposite motor direction
       if(turnTableState == 1) {
         turnTable.stop();
