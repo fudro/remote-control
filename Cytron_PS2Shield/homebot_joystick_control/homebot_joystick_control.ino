@@ -123,16 +123,20 @@ int turnTableSwitch = 0;  //state of turntable switch, default state is 0 (LOW)
 int turnTableHall = 1;    //state of turntable hall effect sensor, default state is HIGH, sensor pulls pin LOW when active (magnet present)
 int driveLeftEncoder = 1; //last state of encoder high(1) or low(0), for comparison with current state read from sensor
 int driveRightEncoder = 1;
+int driveLeftState = 0;   //store direction of left drive motor
+int driveRightState = 0;  //store direction of right drive motor
 //Tracking variables
 int turnTableCount = 1;  //store encoder ticks for current amount of turntable travel based on encoder ticks. Default to 1 for easier calculations (15 ticks ~ 90 degrees)
 int turnTableTarget = 0;   //track whether the a turnTable limit has been reached. (0 = FALSE, 1 = TRUE)
-//TODO: Set turnTablePosition to zero
-int turnTablePosition = 14;  //store current turn table position based on encoder ticks and turn table rotation limits
+int turnTablePosition = 0;  //store current turn table position based on encoder ticks and turn table rotation limits
+int turnTableAnalog = 0;  //last analog value of turntable encoder
 int driveLeftCount = 0;  //store encoder tick value to track movement
 int driveRightCount = 0;
 int driveLeftAnalog = 0;  //last analog value from drive encoder, raw analog value is compared with the Min/Max constants to set current state of encoder
 int driveRightAnalog = 0;
-int turnTableAnalog = 0;  //last analog value of turntable encoder
+int driveLeftDistance = 0; //track tick count of encoder
+int driveRightDistance = 0;  
+int tailGripCount = 0;    //track the number of iterations for pulsing motor to close tail gripper
 int sort_count = 0;       //track the last ten "selected" sonar values. Sonar values are "selected" using the NUM_SAMPLES and SAMPLE_OFFSET constants.
 int left_sonar[10];       //arrays to store sonar readings
 int center_sonar[10];
@@ -170,6 +174,8 @@ int shoulder_lift_speed = 0;  //speed at which the arm "shoulder" moves up and d
 int turntable_speed = 0;
 int elbow_lift_speed = 0;  //speed at which the arm "shoulder" moves up and down
 int wrist_turn_speed = 0;
+int drive_speed_left = 0;
+int drive_speed_right = 0;
 //int commandState = 0;         //Track if a command is currently being executed
 
 /***********************************
@@ -178,6 +184,7 @@ int wrist_turn_speed = 0;
 void armGripper(int gripState, int gripTime = ARMGRIPTIME); //gripState is OPEN (0) or CLOSE (1)
 void armGripperManual(int gripState, int gripTime = ARMGRIPTIME); //special version of arm gripper funtion for manual remote control operation
 void wristRotate (int targetState, int wristDirection = CW, float wristRevolution = 0.0, int wristSpeed = 255);  //targetState is (V)ertical or (H)orizontal, wristRevolution is the number of full revolutions to be perfomed.
+void wristManual(int wristDirection, int wristSpeed = 255);  //manual version of the wristRotate function. Requires a direction (CCW = -1, CW = 1)
 void elbowMove(int elbowPosition = 500, int elbowSpeed = 65);  //default parameter values are approximate center position and preferred default speed.
 void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 131); //default parameter values are approximate center position and preferred default speed.
 void turnTableMove(int turnDegrees = 0, int turnDirection = CW, int turnSpeed = 65);    //turnDegrees is the degrees of angular rotation from the current position
@@ -226,116 +233,8 @@ void setup()
   Serial2.begin(115200);       //Set MegaPi serial channel for remote control communication
 }
 
-void loop()
-{ 
-  /***************************
-      TRIGGERS
-   ***************************/
-  //L1 and L2 Triggers (Used for Tail Gripper)
-  if (ps2.readButton(PS2_LEFT_1) == 0) // 0 = pressed, 1 = released
-  {
-    delay(10);  //debounce button by pausing and then double checking buttonstate
-    if(ps2.readButton(PS2_LEFT_1) == 0 && tailGripState == 1) {
-      Serial.println("L1 Pressed!");
-      tailGripper(OPEN);
-    }
-  }
-  if(ps2.readButton(PS2_LEFT_2) == 0) // 0 = pressed, 1 = released
-  {
-    delay(10);  //debounce button by pausing and then double checking buttonstate
-    if(ps2.readButton(PS2_LEFT_2) == 0 && tailGripState == 0) { 
-      Serial.println("L2 Pressed!");
-      tailGripper(CLOSE);
-    }
-  }
-
-   
-  //R1 and R2 Triggers (Used for Arm Gripper)
-  if(ps2.readButton(PS2_RIGHT_1) == 0) // 0 = pressed, 1 = released
-  {
-    delay(10);  //debounce button by pausing and then double checking buttonstate
-    if(ps2.readButton(PS2_RIGHT_1) == 0) {
-      Serial.println("R1 Pressed!");
-      armGripper(OPEN);   //automatically fully open gripper based on timer default constant
-    }
-  }
-  if(ps2.readButton(PS2_RIGHT_2) == 0) // 0 = pressed, 1 = released
-  {
-    delay(10);  //debounce button by pausing and then double checking buttonstate
-    if(ps2.readButton(PS2_RIGHT_2) == 0) {
-      Serial.println("R2 Pressed!");
-      armGripperManual(CLOSE);    //Continually close arm gripper while button is pressed.
-    }
-  }
-  else if(ps2.readButton(PS2_RIGHT_2) == 1)
-  {
-    armGripperManual(STOP);
-  }
-
-  /****************************
-      BUTTONS
-  ****************************/
-  //Triangle
-  if(ps2.readButton(PS2_TRIANGLE) == 0) // 0 = pressed, 1 = released
-  {
-    delay(10);
-    if(ps2.readButton(PS2_TRIANGLE) == 0 && triangleState == 0) { //double check button to prevent false trigger
-      triangleState = 1;
-      Serial.println("Triangle Pressed");
-    }
-  }
-  else if(ps2.readButton(PS2_TRIANGLE) == 1 && triangleState == 1)
-  {
-    triangleState = 0;
-    Serial.println("Triangle Released");
-  }
-  
-  //Circle
-  if(ps2.readButton(PS2_CIRCLE) == 0) // 0 = pressed, 1 = released
-  {
-    delay(10);
-    if(ps2.readButton(PS2_CIRCLE) == 0 && circleState == 0) { //double check button to prevent false trigger
-      circleState = 1;
-      Serial.println("Circle Pressed!");
-    }
-  }
-  else if(ps2.readButton(PS2_CIRCLE) == 1 && circleState == 1)
-  {
-    circleState = 0;
-    Serial.println("Circle Released!");
-  }
-  
-  //Cross
-  if(ps2.readButton(PS2_CROSS) == 0) // 0 = pressed, 1 = released
-  {
-    delay(10);
-    if(ps2.readButton(PS2_CROSS) == 0 && crossState == 0) { //double check button to prevent false trigger
-      crossState = 1;
-      Serial.println("Cross Pressed!");
-    }
-  }
-  else if(ps2.readButton(PS2_CROSS) == 1 && crossState == 1)
-  {
-    crossState = 0;
-    Serial.println("Cross Released!");
-  }
-  
-  //Square
-  if(ps2.readButton(PS2_SQUARE) == 0) // 0 = pressed, 1 = released
-  {
-    delay(10);
-    if(ps2.readButton(PS2_SQUARE) == 0 && squareState == 0) { //double check button to prevent false trigger
-      squareState = 1;
-      Serial.println("Square Pressed!");
-    }
-  }
-  else if (ps2.readButton(PS2_SQUARE) == 1 && squareState == 1)
-  {
-    squareState = 0;
-    Serial.println("Square Released!");
-  }
-
-  //SPECIAL BUTTONS
+void loop(){ 
+    //SPECIAL BUTTONS
   //Select
   if(ps2.readButton(PS2_SELECT) == 0) // 0 = pressed, 1 = released
   {
@@ -347,6 +246,15 @@ void loop()
       //Toggle Control Mode
       controlMode = !controlMode;   //toggle state variable for the mode (DRIVE or ARM)
       if(controlMode == 0) {  //DRIVE MODE
+        //Reset runArray to only allow the drive motor commands
+        runArray[0] = 0,  //runArray[0]: armGripper
+        runArray[1] = 0,  //runArray[1]: wrist
+        runArray[2] = 0,  //runArray[2]: elbow
+        runArray[3] = 0,  //runArray[3]: shoulder
+        runArray[4] = 0,  //runArray[4]: turntable
+        runArray[5] = 0,  //runArray[5]: tailGripper
+        runArray[6] = 1,  //runArray[6]: drive
+        runArray[7] = 0;  //runArray[7]: sonar
         ps2.vibrate(PS2_MOTOR_1,255);   //Vibrate desired motor (1 or 2) at the max speed (255)
         delay(300);
         ps2.vibrate(PS2_MOTOR_1,0);
@@ -356,6 +264,15 @@ void loop()
         ps2.vibrate(PS2_MOTOR_2,0);
       }
       else if(controlMode == 1) { //ARM MODE
+        //Reset runArray to only allow the arm and gripper motor commands
+        runArray[0] = 1,  //runArray[0]: armGripper
+        runArray[1] = 1,  //runArray[1]: wrist
+        runArray[2] = 1,  //runArray[2]: elbow
+        runArray[3] = 1,  //runArray[3]: shoulder
+        runArray[4] = 1,  //runArray[4]: turntable
+        runArray[5] = 1,  //runArray[5]: tailGripper
+        runArray[6] = 0,  //runArray[6]: drive
+        runArray[7] = 0;  //runArray[7]: sonar
         ps2.vibrate(PS2_MOTOR_1,255);   //Vibrate desired motor (1 or 2) at the max speed (255)
         delay(300);
         ps2.vibrate(PS2_MOTOR_1,0);
@@ -370,169 +287,495 @@ void loop()
     ps2.vibrate(PS2_MOTOR_2,0);
   }
 
-  /****************************
-      JOYSTICKS
-  ****************************/
-
-  //JOYSTICK BUTTONS
-
-  //Left Joystick Press (L3)
-  if(ps2.readButton(PS2_JOYSTICK_LEFT) == 0) // 0 = pressed, 1 = released
-  {
-    delay(10);
-    if(ps2.readButton(PS2_JOYSTICK_LEFT) == 0 && joystickLeftState == 0) { //double check button to prevent false trigger
-      joystickLeftState = 1;
-      turnTableReset();
-      Serial.println("Left Joystick Pressed!");
+  //DRIVE CONTROL MODE
+  if(controlMode == 0) {
+    //Buttons
+    //Left Joystick Press (L3)
+    if(ps2.readButton(PS2_JOYSTICK_LEFT) == 0) // 0 = pressed, 1 = released
+    {
+      delay(10);
+      if(ps2.readButton(PS2_JOYSTICK_LEFT) == 0 && joystickLeftState == 0) { //double check button to prevent false trigger
+        joystickLeftState = 1;
+        driveLeftDistance = 0;
+        Serial.println("Left Joystick Pressed!");
+        Serial.println("Left Encoder Reset!");
+      }
     }
-  }
-  else if (ps2.readButton(PS2_JOYSTICK_LEFT) == 1 && joystickLeftState == 1)
-  {
-    joystickLeftState = 0;
-    Serial.println("Left Joystick Released!");
-  }
-
-  //Right Joystick Press (R3)
-  if(ps2.readButton(PS2_JOYSTICK_RIGHT) == 0) // 0 = pressed, 1 = released
-  {
-    delay(10);
-    if(ps2.readButton(PS2_JOYSTICK_RIGHT) == 0 && joystickRightState == 0) { //double check button to prevent false trigger
-      joystickRightState = 1;
-      Serial.println("Right Joystick Pressed!");
+    else if (ps2.readButton(PS2_JOYSTICK_LEFT) == 1 && joystickLeftState == 1)
+    {
+      joystickLeftState = 0;
+      Serial.println("Left Joystick Released!");
     }
-  }
-  else if (ps2.readButton(PS2_JOYSTICK_RIGHT) == 1 && joystickRightState == 1)
-  {
-    joystickRightState = 0;
-    Serial.println("Right Joystick Released!");
-  }
-
-
-  //JOYSTICKS
   
-  //Find LEFT joystick distance from center position. Value of 128 is center in both X and Y axes.
-  joystick_left_Y = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
-  joystick_left_X = ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT/RotateCW is positive)
+    //Right Joystick Press (R3)
+    if(ps2.readButton(PS2_JOYSTICK_RIGHT) == 0) // 0 = pressed, 1 = released
+    {
+      delay(10);
+      if(ps2.readButton(PS2_JOYSTICK_RIGHT) == 0 && joystickRightState == 0) { //double check button to prevent false trigger
+        joystickRightState = 1;
+        driveRightDistance = 0;
+        Serial.println("Right Joystick Pressed!");
+        Serial.println("Right Encoder Reset!");
+      }
+    }
+    else if (ps2.readButton(PS2_JOYSTICK_RIGHT) == 1 && joystickRightState == 1)
+    {
+      joystickRightState = 0;
+      Serial.println("Right Joystick Released!");
+    }
+    
+    //JOYSTICKS
+    //Find LEFT joystick distance from center position. Value of 128 is center in the Y axes.
+    joystick_left_Y = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
+  
+    //Get LEFT DRIVE speed. Check for joystick movement beyond UP/DOWN dead zone.
+    if (joystick_left_Y > 50 || joystick_left_Y < -50) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for DOWN and UP. Defaults to 50 for both.).
+      drive_speed_left = map(joystick_left_Y, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (from center to extremity)
+    }
+    else {
+      drive_speed_left = 0;    //if no detectable joystick movement
+    }
 
-  //Get Shoulder LIFT speed. Check for joystick movement beyond UP/DOWN dead zone.
-  if (joystick_left_Y > 50 || joystick_left_Y < -50) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for DOWN and UP. Defaults to 50 for both.).
-    shoulder_lift_speed = map(joystick_left_Y, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (from center to extremity)
-  }
-  else {
-    shoulder_lift_speed = 0;    //if no detectable joystick movement
-  }
-  //Get Shoulder TURN speed. Check for joystick movement beyond LEFT/RIGHT dead zone.
-  if (joystick_left_X > 50 || joystick_left_X < -50) { 
-    turntable_speed = map(joystick_left_X, 0, 128, 0, 255); 
-  }  
-  else {
-    turntable_speed = 0;    //if no detectable joystick movement
-  }
-  //Check LIFT direction
-  if (shoulder_lift_speed != 0) {
-    Serial.print("Left Joystick: ");
-    //MOVING DOWN (Joystick Forward)
-    if (shoulder_lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
-      Serial.print("Down! \n");
-      shoulderMove(SHOULDER_MIN);   //Limit for the shoulder joint's lowest position
+    //Check LEFT DRIVE direction
+    if (drive_speed_left != 0) {
+      Serial.print("Left Drive ");
+      //MOVING FORWARD (Joystick Forward)
+      if (drive_speed_left > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the left wheels forward)
+        driveLeftState = 1;
+        driveLeftManual(drive_speed_left);   //Left Drive Motor Forward
+        Serial.print("Forward! \n");
+      }
+      //MOVING UP (Joystick Backward)
+      else if (drive_speed_left < 0) {
+        driveLeftState = -1;
+        driveLeftManual(drive_speed_left);;   //Left Drive Motor Backward
+        Serial.print("Backward! \n");
+      }
     }
-    //MOVING UP (Joystick Backward)
-    else if (shoulder_lift_speed < 0) {
-      Serial.print("Up! \n");
-      shoulderMove(SHOULDER_MAX);   //Limit for the shoulder joint's highest position
+    else if(drive_speed_left == 0 && driveLeftState != 0) {
+      //Stop
+      driveLeftManual(STOP);;   //Left Drive Motor Stop
+      driveLeftState = 0;
+      Serial.print("LEFT DRIVE NEUTRAL!!\n");
     }
-  }
-  else if(shoulder_lift_speed == 0 && shoulderState != 0) {
-    //Stop
-    shoulderMove(STOP);
-    Serial.print("UP/DOWN NEUTRAL!!\n");
-  }
-
-  //Check LEFT/RIGHT direction
-  if (turntable_speed != 0) {
-    Serial.print("Left Joystick: ");
-    //MOVING CW (Joystick Right)
-    if (turntable_speed > 0) {   //Check LEFT/RIGHT direction of joystick (RIGHT is greater than zero and moves the shoulder CW)
-      Serial.print("CW! \n");
-      turnTableState = 1;
-      turnTableManual(turnTableState);
+  
+    //Find RIGHT joystick distance from center position. Value of 128 is center in both X and Y axes.
+    joystick_right_Y = 128 - ps2.readButton(PS2_JOYSTICK_RIGHT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
+  
+    //Check for joystick movement beyond UP/DOWN dead zone
+    if (joystick_right_Y > 50 || joystick_right_Y < -50) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for DOWN and UP. Defaults to 50 for both.).
+      drive_speed_right = map(joystick_right_Y, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (from center to extremity)
     }
-    //MOVING CCW (Joystick Left)
-    else if (turntable_speed < 0) {
-      Serial.print("CCW! \n");
-      turnTableState = -1;
-      turnTableManual(turnTableState);
+    else {
+      drive_speed_right = 0;    //if no detectable joystick movement
     }
-  }
-  else if(turntable_speed == 0 && turnTableState != 0) {
-    //Stop
-    turnTableManual(STOP);
-    turnTableState = 0;
-    turnTableCount = 1; //Reset turnTableCount. Default to 1 for easier calculations (15 ticks ~ 90 degrees)
-    Serial.print("LEFT/RIGHT NEUTRAL!!\n");
-  }
-
-  //Find RIGHT joystick distance from center position. Value of 128 is center in both X and Y axes.
-  joystick_right_Y = 128 - ps2.readButton(PS2_JOYSTICK_RIGHT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
-  joystick_right_X = ps2.readButton(PS2_JOYSTICK_RIGHT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT/RotateCW is positive)
-
-  //Check for joystick movement beyond UP/DOWN dead zone
-  if (joystick_right_Y > 50 || joystick_right_Y < -50) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for DOWN and UP. Defaults to 50 for both.).
-    elbow_lift_speed = map(joystick_right_Y, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (from center to extremity)
-  }
-  else {
-    elbow_lift_speed = 0;    //if no detectable joystick movement
-  }
-  //Check for joystick movement beyond LEFT/RIGHT dead zone
-  if (joystick_right_X > 50 || joystick_right_X < -50) { 
-    wrist_turn_speed = map(joystick_right_X, 0, 128, 0, 255); 
-  }  
-  else {
-    wrist_turn_speed = 0;    //if no detectable joystick movement
-  }
-  //Check UP/DOWN direction
-  if (elbow_lift_speed != 0) {
-    Serial.print("Right Joystick: ");
-    //MOVING DOWN (Joystick Forward)
-    if (elbow_lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
-      Serial.print("Down! \n");
-      elbowMove(ELBOW_MIN);
+    
+    //Check RIGHT DRIVE direction
+    if (drive_speed_right != 0) {
+      Serial.print("Right Joystick: ");
+      //MOVING FORWARD (Joystick Forward)
+      if (drive_speed_right > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
+        driveRightState = 1;
+        driveRightManual(drive_speed_right);   //Right Drive Motor Forward
+        Serial.print("Right Drive Forward! \n");
+      }
+      //MOVING BACKWARD (Joystick Backward)
+      else if (drive_speed_right < 0) {
+        driveRightState = -1;
+        driveRightManual(drive_speed_right);   //Right Drive Motor Backward
+        Serial.print("Right Drive Backward! \n");
+      }
     }
-    //MOVING UP (Joystick Backward)
-    else if (elbow_lift_speed < 0) {
-      Serial.print("Up! \n");
-      elbowMove(ELBOW_MAX);
+    else if(drive_speed_right == 0 && driveRightState != 0) {
+      //Stop
+      driveRightManual(drive_speed_right);   //Right Drive Motor Backward
+      driveRightState = 0;
+      Serial.print("RIGHT DRIVE NEUTRAL!!\n");
     }
   }
-  else if(elbow_lift_speed == 0 && elbowState != 0) {
-    //Stop
-      elbowMove(STOP);
+  //ARM CONTROL MODE
+  else if(controlMode == 1) {   
+    /***************************
+      TRIGGERS
+     ***************************/
+    //L1 and L2 Triggers (Used for Tail Gripper)
+    if (ps2.readButton(PS2_LEFT_1) == 0) // 0 = pressed, 1 = released
+    {
+      delay(10);  //debounce button by pausing and then double checking buttonstate
+      if(ps2.readButton(PS2_LEFT_1) == 0 && tailGripState == 1) {
+        Serial.println("L1 Pressed!");
+        tailGripper(OPEN);
+      }
+    }
+    if(ps2.readButton(PS2_LEFT_2) == 0) // 0 = pressed, 1 = released
+    {
+      delay(10);  //debounce button by pausing and then double checking buttonstate
+      if(ps2.readButton(PS2_LEFT_2) == 0 && tailGripState == 0) { 
+        Serial.println("L2 Pressed!");
+        tailGripper(CLOSE);
+      }
+    }
+     
+    //R1 and R2 Triggers (Used for Arm Gripper)
+    if(ps2.readButton(PS2_RIGHT_1) == 0) // 0 = pressed, 1 = released
+    {
+      delay(10);  //debounce button by pausing and then double checking buttonstate
+      if(ps2.readButton(PS2_RIGHT_1) == 0) {
+        Serial.println("R1 Pressed!");
+        armGripper(OPEN);   //automatically fully open gripper based on timer default constant
+      }
+    }
+    if(ps2.readButton(PS2_RIGHT_2) == 0) // 0 = pressed, 1 = released
+    {
+      delay(10);  //debounce button by pausing and then double checking buttonstate
+      if(ps2.readButton(PS2_RIGHT_2) == 0) {
+        Serial.println("R2 Pressed!");
+        armGripperManual(CLOSE);    //Continually close arm gripper while button is pressed.
+      }
+    }
+    else if(ps2.readButton(PS2_RIGHT_2) == 1)
+    {
+      armGripperManual(STOP);
+    }
+  
+    /****************************
+        BUTTONS
+    ****************************/
+    //Triangle
+    if(ps2.readButton(PS2_TRIANGLE) == 0) // 0 = pressed, 1 = released
+    {
+      delay(10);
+      if(ps2.readButton(PS2_TRIANGLE) == 0 && triangleState == 0) { //double check button to prevent false trigger
+        triangleState = 1;
+        Serial.println("Triangle Pressed");
+      }
+    }
+    else if(ps2.readButton(PS2_TRIANGLE) == 1 && triangleState == 1)
+    {
+      triangleState = 0;
+      Serial.println("Triangle Released");
+    }
+    
+    //Circle
+    if(ps2.readButton(PS2_CIRCLE) == 0) // 0 = pressed, 1 = released
+    {
+      delay(10);
+      if(ps2.readButton(PS2_CIRCLE) == 0 && circleState == 0) { //double check button to prevent false trigger
+        circleState = 1;
+        Serial.println("Circle Pressed!");
+      }
+    }
+    else if(ps2.readButton(PS2_CIRCLE) == 1 && circleState == 1)
+    {
+      circleState = 0;
+      Serial.println("Circle Released!");
+    }
+    
+    //Cross
+    if(ps2.readButton(PS2_CROSS) == 0) // 0 = pressed, 1 = released
+    {
+      delay(10);
+      if(ps2.readButton(PS2_CROSS) == 0 && crossState == 0) { //double check button to prevent false trigger
+        crossState = 1;
+        Serial.println("Cross Pressed!");
+      }
+    }
+    else if(ps2.readButton(PS2_CROSS) == 1 && crossState == 1)
+    {
+      crossState = 0;
+      Serial.println("Cross Released!");
+    }
+    
+    //Square
+    if(ps2.readButton(PS2_SQUARE) == 0) // 0 = pressed, 1 = released
+    {
+      delay(10);
+      if(ps2.readButton(PS2_SQUARE) == 0 && squareState == 0) { //double check button to prevent false trigger
+        squareState = 1;
+        Serial.println("Square Pressed!");
+      }
+    }
+    else if (ps2.readButton(PS2_SQUARE) == 1 && squareState == 1)
+    {
+      squareState = 0;
+      Serial.println("Square Released!");
+    }
+  
+    /****************************
+        JOYSTICKS
+    ****************************/
+  
+    //JOYSTICK BUTTONS
+    //Left Joystick Press (L3)
+    if(ps2.readButton(PS2_JOYSTICK_LEFT) == 0) // 0 = pressed, 1 = released
+    {
+      delay(10);
+      if(ps2.readButton(PS2_JOYSTICK_LEFT) == 0 && joystickLeftState == 0) { //double check button to prevent false trigger
+        joystickLeftState = 1;
+        turnTableReset();
+        Serial.println("Left Joystick Pressed!");
+      }
+    }
+    else if (ps2.readButton(PS2_JOYSTICK_LEFT) == 1 && joystickLeftState == 1)
+    {
+      joystickLeftState = 0;
+      Serial.println("Left Joystick Released!");
+    }
+  
+    //Right Joystick Press (R3)
+    if(ps2.readButton(PS2_JOYSTICK_RIGHT) == 0) // 0 = pressed, 1 = released
+    {
+      delay(10);
+      if(ps2.readButton(PS2_JOYSTICK_RIGHT) == 0 && joystickRightState == 0) { //double check button to prevent false trigger
+        wristReset();
+        joystickRightState = 1;
+        Serial.println("Right Joystick Pressed!");
+      }
+    }
+    else if (ps2.readButton(PS2_JOYSTICK_RIGHT) == 1 && joystickRightState == 1)
+    {
+      joystickRightState = 0;
+      Serial.println("Right Joystick Released!");
+    }
+  
+    //JOYSTICKS
+    
+    //Find LEFT joystick distance from center position. Value of 128 is center in both X and Y axes.
+    joystick_left_Y = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
+    joystick_left_X = ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT/RotateCW is positive)
+  
+    //Get Shoulder LIFT speed. Check for joystick movement beyond UP/DOWN dead zone.
+    if (joystick_left_Y > 50 || joystick_left_Y < -50) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for DOWN and UP. Defaults to 50 for both.).
+      shoulder_lift_speed = map(joystick_left_Y, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (from center to extremity)
+    }
+    else {
+      shoulder_lift_speed = 0;    //if no detectable joystick movement
+    }
+    //Get Shoulder TURN speed. Check for joystick movement beyond LEFT/RIGHT dead zone.
+    if (joystick_left_X > 50 || joystick_left_X < -50) { 
+      turntable_speed = map(joystick_left_X, 0, 128, 0, 255); 
+    }  
+    else {
+      turntable_speed = 0;    //if no detectable joystick movement
+    }
+    //Check LIFT direction
+    if (shoulder_lift_speed != 0) {
+      Serial.print("Left Joystick: ");
+      //MOVING DOWN (Joystick Forward)
+      if (shoulder_lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
+        Serial.print("Down! \n");
+        shoulderMove(SHOULDER_MIN);   //Limit for the shoulder joint's lowest position
+      }
+      //MOVING UP (Joystick Backward)
+      else if (shoulder_lift_speed < 0) {
+        Serial.print("Up! \n");
+        shoulderMove(SHOULDER_MAX);   //Limit for the shoulder joint's highest position
+      }
+    }
+    else if(shoulder_lift_speed == 0 && shoulderState != 0) {
+      //Stop
+      shoulderMove(STOP);
       Serial.print("UP/DOWN NEUTRAL!!\n");
-  }
+    }
   
-  //Check CW/CCW direction
-  if (wrist_turn_speed != 0) {
-    Serial.print("Right Joystick: ");
-    //MOVING CW (Joystick Right)
-    if (wrist_turn_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
-      wristState = 1;
-      lastWristDirection = wristState;
-      wristRotate(wristOrientation, wristState);
-      Serial.print("CW! \n");
+    //Check LEFT/RIGHT direction
+    if (turntable_speed != 0) {
+      Serial.print("Left Joystick: ");
+      //MOVING CW (Joystick Right)
+      if (turntable_speed > 0) {   //Check LEFT/RIGHT direction of joystick (RIGHT is greater than zero and moves the shoulder CW)
+        Serial.print("CW! \n");
+        turnTableState = 1;
+        turnTableManual(turnTableState);
+      }
+      //MOVING CCW (Joystick Left)
+      else if (turntable_speed < 0) {
+        Serial.print("CCW! \n");
+        turnTableState = -1;
+        turnTableManual(turnTableState);
+      }
     }
-    //MOVING CCW (Joystick Left)
-    else if (wrist_turn_speed < 0) {
-      wristState = -1;
-      lastWristDirection = wristState;
-      wristRotate(wristOrientation, wristState);
-      Serial.print("CCW! \n");
+    else if(turntable_speed == 0 && turnTableState != 0) {
+      //Stop
+      turnTableManual(STOP);
+      turnTableState = 0;
+      turnTableCount = 1; //Reset turnTableCount. Default to 1 for easier calculations (15 ticks ~ 90 degrees)
+      Serial.print("LEFT/RIGHT NEUTRAL!!\n");
     }
-  }
-  else if(wrist_turn_speed == 0 && wristState != 0) {
-    //Stop
-      wristRotate(STOP);
+  
+    //Find RIGHT joystick distance from center position. Value of 128 is center in both X and Y axes.
+    joystick_right_Y = 128 - ps2.readButton(PS2_JOYSTICK_RIGHT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
+    joystick_right_X = ps2.readButton(PS2_JOYSTICK_RIGHT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT/RotateCW is positive)
+  
+    //Check for joystick movement beyond UP/DOWN dead zone
+    if (joystick_right_Y > 50 || joystick_right_Y < -50) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for DOWN and UP. Defaults to 50 for both.).
+      elbow_lift_speed = map(joystick_right_Y, 0, 128, 0, 255);    //Map values to get full power delivery using only half of joystick travel (from center to extremity)
+    }
+    else {
+      elbow_lift_speed = 0;    //if no detectable joystick movement
+    }
+    //Check for joystick movement beyond LEFT/RIGHT dead zone
+    if (joystick_right_X > 50 || joystick_right_X < -50) { 
+      wrist_turn_speed = map(joystick_right_X, 0, 128, 0, 255); 
+    }  
+    else {
+      wrist_turn_speed = 0;    //if no detectable joystick movement
+    }
+    //Check UP/DOWN direction
+    if (elbow_lift_speed != 0) {
+      Serial.print("Right Joystick: ");
+      //MOVING DOWN (Joystick Forward)
+      if (elbow_lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
+        Serial.print("Down! \n");
+        elbowMove(ELBOW_MIN);
+      }
+      //MOVING UP (Joystick Backward)
+      else if (elbow_lift_speed < 0) {
+        Serial.print("Up! \n");
+        elbowMove(ELBOW_MAX);
+      }
+    }
+    else if(elbow_lift_speed == 0 && elbowState != 0) {
+      //Stop
+        elbowMove(STOP);
+        Serial.print("UP/DOWN NEUTRAL!!\n");
+    }
+    
+    //Check CW/CCW direction
+    if (wrist_turn_speed != 0) {
+      Serial.print("Right Joystick: ");
+      //MOVING CW (Joystick Right)
+      if (wrist_turn_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
+        wristState = 1;
+        lastWristDirection = wristState;
+        wristManual(wristState);
+        Serial.print("CW! \n");
+      }
+      //MOVING CCW (Joystick Left)
+      else if (wrist_turn_speed < 0) {
+        wristState = -1;
+        lastWristDirection = wristState;
+        wristManual(wristState);
+        Serial.print("CCW! \n");
+      }
+    }
+    else if(wrist_turn_speed == 0 && wristState != 0) {
+      //Stop
+      wristManual(STOP);
       wristState = 0;
       Serial.print("WRIST NEUTRAL!!\n");
+    }
+  }
+}
+
+
+void driveLeftManual(int driveSpeed) {
+  if(runArray[6] == 1) {    //Check flag to see if movement of this motor is allowed
+
+    //if Stopped
+    if(driveSpeed == STOP) {
+      //check motor direction based on driveLeftState and brake by setting the motorspeed to the opposite motor direction
+      if(driveLeftState == 1) {
+        driveLeft.stop();
+        driveLeft.run(-driveSpeed); //Reverse motor direction to brake briefly (Braking direction based on actual motor wire connection)
+      }
+      else if(driveLeftState == -1) {
+        driveLeft.stop();
+        driveLeft.run(driveSpeed); //Reverse motor direction to brake briefly (Braking direction based on actual motor wire connection)
+      }
+      delay(10);
+      driveLeft.run(0);    //Release motor by setting speed to zero
+      driveLeft.stop();
+      Serial.print("Drive Left Encoder: ");   //Display stored global arm position
+      Serial.println(driveLeftEncoder);
+      Serial.println("DRIVE LEFT STOPPED!");
+    }
+    //if driving forward
+    else if(driveSpeed > 0 && driveLeftState != 0) {   //The turnTableState flag prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection
+      driveLeft.run(driveSpeed);
+      Serial.println("Drive Left Forward");
+    }
+    //if driving backward
+    else if(driveSpeed < 0 && driveLeftState != 0) {   //The turnTableState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection.
+      driveLeft.run(-driveSpeed);
+      Serial.println("Drive Left Backward");
+    }
+    //Read left drive encoder
+    driveLeftAnalog = analogRead(DRIVE_LEFT_ENCODER);
+    //Check if encoder signal HIGH
+    if(driveLeftAnalog > DRIVE_LEFT_ANALOG_MAX && driveLeftEncoder == 0) { //if encoder value passes the threshold for HIGH, and the current state of the sensor is LOW, set sensor state to HIGH and increment the tick count.
+      driveLeftEncoder = 1;
+      driveLeftDistance++;   //Increment encoder tick count each time the sensor reads HIGH
+    }
+    //Check if encoder signal LOW
+    else if(driveLeftAnalog < DRIVE_LEFT_ANALOG_MIN && driveLeftEncoder == 1) {  //if encoder value goes below the threshold for LOW, and the current state of the sensor is HIGH, set the sensor state to LOW and wait for next trigger.
+      driveLeftEncoder = 0;
+    }
+    Serial.print("Drive Left: ");
+    Serial.print("A ");
+    Serial.print(driveLeftAnalog);
+    Serial.print("\t");
+    Serial.print("E ");
+    Serial.print(driveLeftEncoder);
+    Serial.print("\t");
+    Serial.print("D ");
+    Serial.println(driveLeftDistance);
+    delay (10);
+  }
+}
+
+
+void driveRightManual(int driveSpeed) {
+  if(runArray[6] == 1) {    //Check flag to see if movement of this motor is allowed
+
+    //if Stopped
+    if(driveSpeed == STOP) {
+      //check motor direction based on driveLeftState and brake by setting the motorspeed to the opposite motor direction
+      if(driveRightState == 1) {
+        driveRight.stop();
+        driveRight.run(-driveSpeed); //Reverse motor direction to brake briefly (Braking direction based on actual motor wire connection)
+      }
+      else if(driveRightState == -1) {
+        driveRight.stop();
+        driveRight.run(driveSpeed); //Reverse motor direction to brake briefly (Braking direction based on actual motor wire connection)
+      }
+      delay(10);
+      driveRight.run(0);    //Release motor by setting speed to zero
+      driveRight.stop();
+      Serial.print("Drive Right Encoder: ");   //Display stored global arm position
+      Serial.println(driveRightEncoder);
+      Serial.println("DRIVE RIGHT STOPPED!");
+    }
+    //if driving forward
+    else if(driveSpeed > 0 && driveRightState != 0) {   //The turnTableState flag prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection
+      driveRight.run(driveSpeed);
+      Serial.println("Drive Right Forward");
+    }
+    //if driving backward
+    else if(driveSpeed < 0 && driveRightState != 0) {   //The turnTableState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection.
+      driveRight.run(-driveSpeed);
+      Serial.println("Drive Right Backward");
+    }
+    //Read right drive encoder
+    driveRightAnalog = analogRead(DRIVE_RIGHT_ENCODER);
+    //Check if encoder signal HIGH
+    if(driveRightAnalog > DRIVE_RIGHT_ANALOG_MAX && driveRightEncoder == 0) { //if encoder value passes the threshold for HIGH, and the current state of the sensor is LOW, set sensor state to HIGH and increment the tick count.
+      driveRightEncoder = 1;
+      driveRightDistance++;   //Increment encoder tick count each time the sensor reads HIGH
+    }
+    //Check if encoder signal LOW
+    else if(driveRightAnalog < DRIVE_RIGHT_ANALOG_MIN && driveRightEncoder == 1) {  //if encoder value goes below the threshold for LOW, and the current state of the sensor is HIGH, set the sensor state to LOW and wait for next trigger.
+      driveRightEncoder = 0;
+    }
+    Serial.print("Drive Right: ");
+    Serial.print("A ");
+    Serial.print(driveRightAnalog);
+    Serial.print("\t");
+    Serial.print("E ");
+    Serial.print(driveRightEncoder);
+    Serial.print("\t");
+    Serial.print("D ");
+    Serial.println(driveRightDistance);
+    delay (10);
   }
 }
 
@@ -550,31 +793,42 @@ void loop()
  * release R3
  * toggle wristOrientation to oppositie (H to V and vice versa) i.e. "wristOrientation != wristOrientation"
  */
-void wristRotate(int targetState, int wristDirection = CW, float wristRevolution = 0.0, int wristSpeed = 255) {
+void wristManual(int wristDirection, int wristSpeed = 255) {
   if(runArray[1] == 1) {    //Check flag to prevent unnecessary re-triggering of the function
-    int count = 0;    //iterator variable to count the number of hardware screws passed during rotation (number of times the wrist switch is activated)
-    float switchCount = 0;  //number of times the wrist switch is activated. 
 
-    Serial.print("\n");
-    Serial.print("Wrist Rotation!");
-    Serial.print("\n");
-    Serial.print("Wrist Direction: ");
-    if(wristDirection == CW) {
-      Serial.print("CW");
+    //if Stopped
+    if(wristDirection == STOP) {
+      //check command direction based on wristState (brake by setting the motorspeed to the opposite motor direction)
+      if(wristState == 1) {
+        armWrist.stop();
+        armWrist.run(-wristSpeed); //Reverse motor direction to brake briefly (Braking direction based on actual motor wire connection)
+      }
+      else if(wristState == -1) {
+        armWrist.stop();
+        armWrist.run(wristSpeed); //Reverse motor direction to brake briefly (Braking direction based on actual motor wire connection)
+      }
+      delay(10);
+      armWrist.run(0);    //Release motor by setting speed to zero
+      armWrist.stop();
+      Serial.println("WRIST STOPPED!");
     }
-    else if(wristDirection == CCW) {
-      Serial.print("CCW");
+    //if rotating CW
+    else if(wristDirection > 0 && wristState != 0) {   //The wristState flag is probably unnecessary
+      armWrist.run(wristSpeed);
+      Serial.println("Wrist Clockwise!");
     }
-    Serial.print("\n");
-    Serial.print("Target Orientation: ");
-    if(targetState == H) {
-      Serial.print("H");
+    //if rotating CCW
+    else if(wristDirection < 0 && wristState != 0) {   //The turnTableState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection.
+      armWrist.run(-wristSpeed);
+      Serial.println("Wrist CounterClockwise!");
     }
-    else if(targetState == V) {
-      Serial.print("V");
-    }
-    Serial.print("\n");
-    
+  }
+}
+
+
+void wristReset() {
+  if(runArray[1] == 1) {    //Check flag to prevent unnecessary re-triggering of the function
+    int wristSpeed = 255;
     //Update wristOrientation
     if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == LOW) {  //If switch AND hall effect sensors are both "activated" (hall sensor is LOW when active), gripper is HORIZONTAL (H)
       wristOrientation = H;
@@ -582,7 +836,11 @@ void wristRotate(int targetState, int wristDirection = CW, float wristRevolution
     else if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == HIGH) { //If switch is activated (HIGH) but hall effect sensor is NOT (hall sensor is LOW when active), gripper is VERTICAL (V)
       wristOrientation = V;
     }
-    Serial.print("Start Orientation: ");
+    //Display wrist info
+    Serial.print("\n");
+    Serial.print("Wrist Reset!");
+    Serial.print("\n");
+    Serial.print("Start Orientation: ");    //Display current orientation at start
     if(wristOrientation == H) {
       Serial.print("H");
     }
@@ -590,21 +848,19 @@ void wristRotate(int targetState, int wristDirection = CW, float wristRevolution
       Serial.print("V");
     }
     Serial.print("\n");
-    Serial.print("Switch State: ");
-    Serial.print(digitalRead(WRIST_SWITCH));
+    Serial.print("Wrist Direction: ");    //display the desired direction
     Serial.print("\n");
+    //Set rotation direction based on the last used direction of rotation
+    if(lastWristDirection > 0) {
+      armWrist.run(wristSpeed);  
+      Serial.print("CW");
+    }
+    else if(lastWristDirection == CCW) {
+      armWrist.run(-wristSpeed);
+      Serial.print("CCW");
+    }
     Serial.print("\n");
 
-    //Set sign of motor speed based on desired rotation direction
-    if(wristDirection == CCW) {   //rotation direction is determined as if the arm is a part of your body an you are looking down the arm toward the gripper
-      wristSpeed = wristSpeed * -1;
-    }
-    //Convert wristRevolution value to required count of switch activations (number of hardware screws that must be passed during rotation)
-    switchCount = int(wristRevolution * 4);   //There are 4 hardware screws per one revolution. A fractional value for wristRevolution will produce an integer value less than 4.
-    Serial.print("Switch Count: ");
-    Serial.print(switchCount);
-    Serial.print("\n");
-    Serial.print("\n");
     //Initialize wrist postion to the nearest cardinal position (determined by switch activation by one of 4 hardware screws combined with state of hall effect sensor)
     if(digitalRead(WRIST_SWITCH) == LOW){     //If switch starts in UNPRESSED (LOW) state (switch is NOT currently positioned over a hardware screw)
       armWrist.run(wristSpeed);               //Run motor until a switch is activated (which means wrist is in one of the cardinal directions)
@@ -626,79 +882,29 @@ void wristRotate(int targetState, int wristDirection = CW, float wristRevolution
       else if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == HIGH) { //If switch is activated (HIGH) but hall effect sensor is NOT (hall sensor is LOW when active), gripper is VERTICAL (V)
         wristOrientation = V;
       }
-      if(wristOrientation == targetState && switchCount < 1) {    //if wrist was already in the desired orientation (wrist did not need to move), set flag that movement is finished
-        runArray[1] = 0;
-      }
     }
     else if(digitalRead(WRIST_SWITCH) == HIGH){ //If switch starts in PRESSED state (switch IS currently positioned over a hardware screw)
-      if(wristOrientation == targetState && switchCount < 1) {    //Check if the wrist is already in the desired target state and no additional rotation is required, set flag that movement is finished
-        runArray[1] = 0;
+      armWrist.run(wristSpeed);   //Run motor until switch is re-activated (which means wrist has rotated 90 degrees to a new cardinal direction but different from the last)
+      while(digitalRead(WRIST_SWITCH) == HIGH) {
+        //Wait for switch to deactivate
       }
-      else {    //otherwise, if wrist movement IS required...
-        if(switchCount >= 1) {
-          armWrist.run(wristSpeed);
-          while(count < switchCount){   //Wait to pass through the required number of screws
-            while(digitalRead(WRIST_SWITCH) == HIGH) {
-              //Wait for switch to deactivate (move off of current screw position)
-            }
-            while(digitalRead(WRIST_SWITCH) == LOW) {
-              //Wait for switch to re-activate (move onto the next screw position)
-            }
-            count++;    //Update count for each new screw detected during rotation
-            Serial.print("Switch Count: ");
-            Serial.print(switchCount);
-            Serial.print("\t");
-            Serial.print("Current Count: ");
-            Serial.print(count);
-            Serial.print("\n");
-          }
-          delay(50);  //Insert slight delay to allow switch roller to fully seat over the hardware screw.
-          //Brake motor once correct number of screws are passed through
-          armWrist.stop();
-          armWrist.run(-wristSpeed); //Brake
-          delay(30);
-          armWrist.run(0);
-          armWrist.stop();
-  
-          //Update wristOrientation once required rotation has completed
-          if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == LOW) {  //If switch AND hall effect are "activated" (hall sensor is LOW when active), gripper is HORIZONTAL (H)
-            wristOrientation = H;
-          }
-          else if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == HIGH) { //If switch is activated but hall effect sensor is NOT (hall sensor is LOW when active), gripper is VERTICAL (V)
-            wristOrientation = V;
-          }
-        }
+      while(digitalRead(WRIST_SWITCH) == LOW) {
+        //Wait for switch to re-activate
       }
-      
-      if(wristOrientation == targetState) { //If targetState has been achieved after rotation, set flag to finish routine and prevent function from re-running
-        runArray[1] = 0;
+      delay(50);  //Insert slight delay to allow switch roller to fully seat over the hardware screw.
+      //Brake motor once switch is activated
+      armWrist.stop();
+      armWrist.run(-wristSpeed); //Reverse motor direction to brake briefly
+      delay(30);
+      armWrist.run(0);    //Release motor by setting speed to zero
+      armWrist.stop();
+
+      //Update wristOrientation
+      if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == LOW) {  //If switch AND hall effect are "activated" (hall effect sensor is LOW when activated), gripper is HORIZONTAL (H)
+        wristOrientation = H;
       }
-      else {    //If target state has NOT been achieved after rotation
-        armWrist.run(wristSpeed);   //Run motor until switch is re-activated (which means wrist has rotated 90 degrees to a new cardinal direction but different from the last)
-        while(digitalRead(WRIST_SWITCH) == HIGH) {
-          //Wait for switch to deactivate
-        }
-        while(digitalRead(WRIST_SWITCH) == LOW) {
-          //Wait for switch to re-activate
-        }
-        delay(50);  //Insert slight delay to allow switch roller to fully seat over the hardware screw.
-        //Brake motor once switch is activated
-        armWrist.stop();
-        armWrist.run(-wristSpeed); //Reverse motor direction to brake briefly
-        delay(30);
-        armWrist.run(0);    //Release motor by setting speed to zero
-        armWrist.stop();
-  
-        //Update wristOrientation
-        if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == LOW) {  //If switch AND hall effect are "activated" (hall effect sensor is LOW when activated), gripper is HORIZONTAL (H)
-          wristOrientation = H;
-        }
-        else if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == HIGH) { //If switch is activated but hall effect sensor is NOT (hall effect sensor is LOW when activated), gripper is VERTICAL (V)
-          wristOrientation = V;
-        }
-        if(wristOrientation == targetState) { //If targetState has been achieved after rotation, set flag to finish routine and prevent function from re-running
-          runArray[1] = 0;
-        }
+      else if(digitalRead(WRIST_SWITCH) == HIGH && digitalRead(WRIST_HALL) == HIGH) { //If switch is activated but hall effect sensor is NOT (hall effect sensor is LOW when activated), gripper is VERTICAL (V)
+        wristOrientation = V;
       }
     }
   }
@@ -1129,25 +1335,50 @@ void tailGripper(int targetState, int gripTime = TAILGRIPTIME) {
       tailGripState = 0;
     }
     else if (targetState == CLOSE && tailGripState == 0) {
+//      Serial.println("Tail Close:");
+//      Serial.print("Speed: ");
+//      Serial.println(-gripSpeed);
+//      Serial.print("Time: ");
+//      Serial.println(gripTime);
+//      tailGrip.run(-gripSpeed); 
+//      delay(gripTime);
+//      tailGripState = 1;
+//      Serial.print("tailGripState: ");
+//      Serial.println(tailGripState);
+//      Serial.print("\n");
+//      
+//      //Brake motor
+//      tailGrip.stop();
+//      tailGrip.run(gripSpeed); //Reverse motor direction to brake briefly
+//      delay(10);
+//      tailGrip.run(0);    //Release motor by setting speed to zero
+//      tailGrip.stop();
+//      tailGripState = 1;
+
       Serial.println("Tail Close:");
       Serial.print("Speed: ");
       Serial.println(-gripSpeed);
       Serial.print("Time: ");
       Serial.println(gripTime);
-      tailGrip.run(-gripSpeed); 
-      delay(gripTime);
-      tailGripState = 1;
+      int runDelay = 10;
+      int gripIterations = floor(gripTime/runDelay);
+      while(tailGripCount < gripIterations) {    //divide gripTime by the amount of time the motor will run each iteration
+        tailGrip.run(-gripSpeed); 
+        delay(runDelay);
+        tailGrip.stop();    //stop motor (without reverse braking) to slightly pause motor to slow it down
+        tailGripCount++;
+        delay(runDelay);
+      }
+      //Fully brake motor once gripTime has elapsed (based on derived gripInterval)
+      tailGrip.stop();
+      tailGrip.run(gripSpeed); //Reverse motor direction to brake briefly
+      delay(runDelay);
+      tailGrip.run(0);    //Release motor by setting speed to zero
+      tailGrip.stop();
+      tailGripState = 1;    //update tailgripper state once fully closed
       Serial.print("tailGripState: ");
       Serial.println(tailGripState);
       Serial.print("\n");
-      
-      //Brake motor
-      tailGrip.stop();
-      tailGrip.run(gripSpeed); //Reverse motor direction to brake briefly
-      delay(10);
-      tailGrip.run(0);    //Release motor by setting speed to zero
-      tailGrip.stop();
-      tailGripState = 1;
     }
     delay(1000);
   }
