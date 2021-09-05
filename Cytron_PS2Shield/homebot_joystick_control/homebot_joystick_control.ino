@@ -110,8 +110,9 @@ int squareState = 0;
 int armGripState = 1; //Default to "closed"
 int tailGripState = 1;  //Default to "closed"
 int wristSwitch = 0;  //state of wrist switch
+int lastWristDirection = 1; //store last rotation direction (used to reorient to nearest cardinal position)
 int wristOrientation = H;   //target wrist orientation (H or V), horizontal direction as default
-int writstState = 0;  //state of wrist motor (-1 = CCW, 0 = NOT MOVING, 1 = CW)
+int wristState = 0;  //state of wrist motor (-1 = CCW, 0 = NOT MOVING, 1 = CW)
 int elbowState = 0; //Initialize elbow as NOT MOVING
 int elbowDirection = 0; //Initialize elbow as NOT MOVING
 int shoulderState = 0; //Initialize shoulder as NOT MOVING
@@ -507,6 +508,31 @@ void loop()
     //Stop
       elbowMove(STOP);
       Serial.print("UP/DOWN NEUTRAL!!\n");
+  }
+  
+  //Check CW/CCW direction
+  if (wrist_turn_speed != 0) {
+    Serial.print("Right Joystick: ");
+    //MOVING CW (Joystick Right)
+    if (wrist_turn_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
+      wristState = 1;
+      lastWristDirection = wristState;
+      wristRotate(wristOrientation, wristState);
+      Serial.print("CW! \n");
+    }
+    //MOVING CCW (Joystick Left)
+    else if (wrist_turn_speed < 0) {
+      wristState = -1;
+      lastWristDirection = wristState;
+      wristRotate(wristOrientation, wristState);
+      Serial.print("CCW! \n");
+    }
+  }
+  else if(wrist_turn_speed == 0 && wristState != 0) {
+    //Stop
+      wristRotate(STOP);
+      wristState = 0;
+      Serial.print("WRIST NEUTRAL!!\n");
   }
 }
 
