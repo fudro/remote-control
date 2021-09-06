@@ -86,7 +86,7 @@ int SAMPLE_OFFSET = 3;  //The number of entries from the max (highest) entry in 
 //Potentiometer Limits
 const int ELBOW_MIN = 150; //Limit values for sensor
 const int ELBOW_MAX = 660;
-const int SHOULDER_MIN = 620;
+const int SHOULDER_MIN = 600;
 const int SHOULDER_MAX = 370;
 //Encoder Analog Limits
 //The encoders use the analog value from the opto-coupler sensor board. 
