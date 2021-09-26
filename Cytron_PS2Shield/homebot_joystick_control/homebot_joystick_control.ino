@@ -151,15 +151,16 @@ int range_right = 0;
 int count = 0;    //test variable
 int runFlag = 1;  //test variable
 
-//The runArray[] determines which motor functions are active (0 = inactive, 1 = active). 
+//The runArray[] determines which motor functions are active (0 = inactive, 1 = active).
+//IMPORTANT: The defaults are overridden with new values when switching modes between DRIVE and ARM 
 //Even if code is called by the main loop, the flag array will prevent code execution if motor is not set to "active".
-int runArray[] = {1,  //runArray[0]: armGripper
-                  1,  //runArray[1]: wrist
-                  1,  //runArray[2]: elbow
-                  1,  //runArray[3]: shoulder
-                  1,  //runArray[4]: turntable
-                  1,  //runArray[5]: tailGripper
-                  1,  //runArray[6]: drive
+int runArray[] = {0,  //runArray[0]: armGripper
+                  0,  //runArray[1]: wrist
+                  0,  //runArray[2]: elbow
+                  0,  //runArray[3]: shoulder
+                  0,  //runArray[4]: turntable
+                  0,  //runArray[5]: tailGripper
+                  0,  //runArray[6]: drive
                   0   //runArray[7]: sonar
 };
 
