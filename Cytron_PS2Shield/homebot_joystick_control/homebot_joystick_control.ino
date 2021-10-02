@@ -235,8 +235,9 @@ void setup()
 }
 
 void loop(){ 
-    //SPECIAL BUTTONS
-  //Select
+  //SPECIAL BUTTONS
+  //SET MODE WITH SELECT BUTTON
+  //Select Pressed
   if(ps2.readButton(PS2_SELECT) == 0) // 0 = pressed, 1 = released
   {
     delay(10);
@@ -280,6 +281,7 @@ void loop(){
       }
     }
   }
+  //Select Released
   else if (ps2.readButton(PS2_SELECT) == 1 && selectState == 1)
   {
     selectState = 0;
@@ -288,6 +290,8 @@ void loop(){
     ps2.vibrate(PS2_MOTOR_2,0);
   }
 
+
+  //PERFORM ACTIONS BASED ON CONTROL MODE:
   //DRIVE CONTROL MODE
   if(controlMode == 0) {
     //Buttons
@@ -325,7 +329,7 @@ void loop(){
       Serial.println("Right Joystick Released!");
     }
     
-    //JOYSTICKS
+    //DRIVE MODE - JOYSTICKS
     //Find LEFT joystick distance from center position. Value of 128 is center in the Y axes.
     joystick_left_Y = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
   
@@ -394,6 +398,7 @@ void loop(){
       Serial.print("RIGHT DRIVE NEUTRAL!!\n");
     }
   }
+
   //ARM CONTROL MODE
   else if(controlMode == 1) {   
     /***************************
@@ -542,6 +547,7 @@ void loop(){
     //JOYSTICKS
     
     //Find LEFT joystick distance from center position. Value of 128 is center in both X and Y axes.
+    //NOTE: if Cytron remote control unit is not connected toa remote, the button value will be returned as 255.
     joystick_left_Y = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
     joystick_left_X = ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT/RotateCW is positive)
   
@@ -561,6 +567,8 @@ void loop(){
     }
     //Check LIFT direction
     if (shoulder_lift_speed != 0) {
+      Serial.print("left Y axis: ");
+      Serial.println(ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS));
       Serial.print("Left Joystick: ");
       //MOVING DOWN (Joystick Forward)
       if (shoulder_lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
