@@ -56,7 +56,7 @@ const int CLOSE = 1;
 const int STOP = 2;
 const int H = 0;    //HORIZONTAL
 const int V = 1;    //VERTICAL
-const int CW = 0;
+const int CW = 0; //Rotation Direction based on "personified" view of the robot. For WRIST rotation: direction is visualized as "looking down the arm" as if it were your own. For BODY and TURNTABLE rotation: direction is visualized based on a TOP-DOWN view of the robot with the front (SONAR) facing the 12 o'clock direction. 
 const int CCW = 1;
 const int FW = 1; //Forward
 const int BW = 0; //Backward
@@ -121,7 +121,7 @@ int shoulderDirection = 0;  //Initialize shoulder direction as NEUTRAL
 int turnTableState = 0; //Initialize shoulder as NOT MOVING
 int turnTableEncoder = 1; //state of turntable encoder as high(1) or low(0). Set initial state to 1 since this input pin is pulled high
 int turnTableSwitch = 0;  //state of turntable switch, default state is 0 (LOW)
-int turnTableHall = 1;    //state of turntable hall effect sensor, default state is HIGH, sensor pulls pin LOW when active (magnet present)
+int turnTableHall = 1;    //state of turntable hall effect sensor, default state is HIGH, sensor pulls pin LOW when active (magnet present). IMPORTANT: Activated (LOW) when arm gripper is aligned with tail gripper
 int driveLeftEncoder = 1; //last state of encoder high(1) or low(0), for comparison with current state read from sensor
 int driveRightEncoder = 1;
 int driveLeftState = 0;   //store direction of left drive motor
@@ -187,8 +187,8 @@ void armGripper(int gripState, int gripTime = ARMGRIPTIME); //gripState is OPEN 
 void armGripperManual(int gripState, int gripTime = ARMGRIPTIME); //special version of arm gripper funtion for manual remote control operation
 void wristRotate (int targetState, int wristDirection = CW, float wristRevolution = 0.0, int wristSpeed = 255);  //targetState is (V)ertical or (H)orizontal, wristRevolution is the number of full revolutions to be perfomed.
 void wristManual(int wristDirection, int wristSpeed = 255);  //manual version of the wristRotate function. Requires a direction (CCW = -1, CW = 1)
-void elbowMove(int elbowPosition = 500, int elbowSpeed = 65);  //default parameter values are approximate center position and preferred default speed.
-void shoulderMove(int shoulderPosition = 550, int shoulderSpeed = 131); //default parameter values are approximate center position and preferred default speed.
+void elbowMoveManual(int elbowPosition = 500, int elbowSpeed = 65);  //default parameter values are approximate center position and preferred default speed.
+void shoulderMoveManual(int shoulderPosition = 550, int shoulderSpeed = 131); //default parameter values are approximate center position and preferred default speed.
 void turnTableMove(int turnDegrees = 0, int turnDirection = CW, int turnSpeed = 65);    //turnDegrees is the degrees of angular rotation from the current position
 void turnTableManual(int commandState = 0, int turnSpeed = 65);    //special version of turnTableMove for remote control operation
 void tailGripper(int gripState, int gripTime = TAILGRIPTIME); //gripState is OPEN (0) or CLOSE (1)
@@ -582,17 +582,17 @@ void loop(){
       //MOVING DOWN (Joystick Forward)
       if (shoulder_lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
         Serial.print("Down! \n");
-        shoulderMove(SHOULDER_MIN);   //Limit for the shoulder joint's lowest position
+        shoulderMoveManual(SHOULDER_MIN);   //Limit for the shoulder joint's lowest position
       }
       //MOVING UP (Joystick Backward)
       else if (shoulder_lift_speed < 0) {
         Serial.print("Up! \n");
-        shoulderMove(SHOULDER_MAX);   //Limit for the shoulder joint's highest position
+        shoulderMoveManual(SHOULDER_MAX);   //Limit for the shoulder joint's highest position
       }
     }
     else if(shoulder_lift_speed == 0 && shoulderState != 0) {
       //Stop
-      shoulderMove(STOP);
+      shoulderMoveManual(STOP);
       Serial.print("UP/DOWN NEUTRAL!!\n");
     }
   
@@ -644,17 +644,17 @@ void loop(){
       //MOVING DOWN (Joystick Forward)
       if (elbow_lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
         Serial.print("Down! \n");
-        elbowMove(ELBOW_MIN);
+        elbowMoveManual(ELBOW_MIN);
       }
       //MOVING UP (Joystick Backward)
       else if (elbow_lift_speed < 0) {
         Serial.print("Up! \n");
-        elbowMove(ELBOW_MAX);
+        elbowMoveManual(ELBOW_MAX);
       }
     }
     else if(elbow_lift_speed == 0 && elbowState != 0) {
       //Stop
-        elbowMove(STOP);
+        elbowMoveManual(STOP);
         Serial.print("UP/DOWN NEUTRAL!!\n");
     }
     
@@ -708,12 +708,12 @@ void driveLeftManual(int driveSpeed) {
       Serial.println("DRIVE LEFT STOPPED!");
     }
     //if driving forward
-    else if(driveSpeed > 0 && driveLeftState != 0) {   //The turnTableState flag prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection
+    else if(driveSpeed > 0 && driveLeftState != 0) {   //The driveLeftState flag prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection
       driveLeft.run(driveSpeed);    //No need to "negate" driveSpeed since it already comes from the controller as a positive OR negative value.
       Serial.println("Drive Left Forward");
     }
     //if driving backward
-    else if(driveSpeed < 0 && driveLeftState != 0) {   //The turnTableState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection.
+    else if(driveSpeed < 0 && driveLeftState != 0) {   //The driveLeftState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection.
       driveLeft.run(driveSpeed);    //No need to "negate" driveSpeed since it already comes from the controller as a positive OR negative value.
       Serial.println("Drive Left Backward");
     }
@@ -764,12 +764,12 @@ void driveRightManual(int driveSpeed) {
       Serial.println("DRIVE RIGHT STOPPED!");
     }
     //if driving forward
-    else if(driveSpeed > 0 && driveRightState != 0) {   //The turnTableState flag prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection
+    else if(driveSpeed > 0 && driveRightState != 0) {   //The driveRightState flag prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection
       driveRight.run(driveSpeed);   //No need to "negate" driveSpeed since it already comes from the controller as a positive OR negative value.
       Serial.println("Drive Right Forward");
     }
     //if driving backward
-    else if(driveSpeed < 0 && driveRightState != 0) {   //The turnTableState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection.
+    else if(driveSpeed < 0 && driveRightState != 0) {   //The driveRightState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection.
       driveRight.run(driveSpeed);    //No need to "negate" driveSpeed since it already comes from the controller as a positive OR negative value.
       Serial.println("Drive Right Backward");
     }
@@ -823,7 +823,7 @@ void wristManual(int wristDirection, int wristSpeed = 255) {
       Serial.println("Wrist Clockwise!");
     }
     //if rotating CCW
-    else if(wristDirection < 0 && wristState != 0) {   //The turnTableState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection.
+    else if(wristDirection < 0 && wristState != 0) {   //The wristState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection.
       armWrist.run(-wristSpeed);
       Serial.println("Wrist CounterClockwise!");
     }
@@ -1016,7 +1016,7 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
 
     //if Stopped
     if(commandState == STOP) {
-      //check motor direction based on turnTableState and brake by setting the motorspeed to the opposite motor direction
+      //check motor direction based on turnTableState and brake by setting the motorspeed to the opposite motor direction. turnTableState is set by joystick input.
       if(turnTableState == 1) {
         turnTable.stop();
         turnTable.run(turnSpeed); //Reverse motor direction to brake briefly (Braking direction based on actual motor wire connection)
@@ -1032,43 +1032,43 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
       Serial.println(turnTablePosition);
       Serial.println("JOYSTICK STOPPED!");
     }
-    //if rotating CW
-    else if(commandState > 0 && turnTableState != 0) {   //The turnTableState flag prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection
-      targetDistance = TURNTABLE_LIMIT - turnTablePosition; //get rotation distance (with zero being toward tail gripper)
+    //if rotating CW (commandState "positive")
+    else if(commandState > 0 && turnTableState != 0) {   //The turnTableState flag prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection. IMPORTANT: turnTableState is reset to zero when the limit is reached.
+      targetDistance = TURNTABLE_LIMIT - turnTablePosition; //Since the joystick can be release at any time, set targetDistance to the maximum distance required to move the arm to the fully extended position (180 degrees from tail gripper). TURNTABLE_LIMIT is the number of encoder ticks to travel 180 degrees.
       conversionRate = 14.5;
       Serial.println("Turntable CW");
 
-      //Check if Hall Effect sensor state is LOW (hall effect sensor is "activated" when LOW)
-      if(turnTableHall == 0) {   //if sensor IS activated
+      //Check if LAST state of Turntable Hall Effect sensor was LOW (hall effect sensor is "activated" when LOW - arm gripper is aligned with tail gripper)
+      if(turnTableHall == 0) {   //if hall effect sensor WAS activated...then double check current value until it is DEACTIVATED.
         //Read turntable hall effect sensor.
         turnTableHall = digitalRead(TURNTABLE_HALL);    //Read current state of hall effect sensor
         Serial.print("Turntable Hall: ");
         Serial.print(turnTableHall);
         Serial.print("\n");
-        if(turnTableHall == 1) {  //if sensor is NOT activated AFTER reading
-          turnTablePosition = 2;  //Set turnTablePosition to a default value based on how far the turntable still needs to travel at default speed to be at the true limit for the desired diection. (The hall effect sensor tends to throw early before the magnet is centered over the sensor.)
-          Serial.println("HALL EFFECT!");
+        if(turnTableHall == 1) {  //if sensor is DEACTIVATED...
+          turnTablePosition = 2;  //Reset turnTablePosition to the default encoder position at the point where the hall effect sensor becomse deactivated. Always resetting this value based on the hall effect sensor ensures better accuracy for turnTablePosition.
+          Serial.println("HALL EFFECT RESET!");
           Serial.print("Turntable Position: ");
           Serial.println(turnTablePosition);
         }
       }
     }
-    //if rotating CCW
-    else if(commandState < 0 && turnTableState != 0) {   //The turnTableState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection.
-      targetDistance = turnTablePosition;
-      conversionRate = 14.0;   //adjust tick taget due to tension from the main cable.
+    //if rotating CCW (sommandState "negative")
+    else if(commandState < 0 && turnTableState != 0) {   //The turnTableState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection. IMPORTANT: turnTableState is reset to zero when the limit is reached.
+      targetDistance = turnTablePosition;   //targetDistance is just equal to the current turnTablePosition since we are rotating arm towards "zero" (towards tail gripper)
+      conversionRate = 14.0;   //adjust tick target due to tension from the main cable.
       Serial.println("Turntable CCW");
       
-      //Check if Hall Effect sensor state is LOW (hall effect sensor is "activated" when LOW)
+      //Check if Hall Effect sensor state is NOT activated (hall effect sensor is "activated" when LOW)
       if(turnTableHall == 1) {   //if sensor is NOT activated
         //Read turntable hall effect sensor.
         turnTableHall = digitalRead(TURNTABLE_HALL);    //Read current state of hall effect sensor
         Serial.print("Turntable Hall: ");
         Serial.print(turnTableHall);
         Serial.print("\n");
-        if(turnTableHall == 0) {  //if sensor IS activated AFTER reading
+        if(turnTableHall == 0) {  //if sensor IS activated AFTER reading, CCW turntable rotatin limit has been reached.
           turnTablePosition = 1;  //Set turnTablePosition to a default value based on how far the turntable still needs to travel at default speed to be at the true limit. (The hall effect sensor tends to throw early before the magnet is centered over the sensor.)
-          Serial.println("HALL EFFECT!");
+          Serial.println("HALL EFFECT LIMIT!");
           Serial.print("Turntable Position: ");
           Serial.println(turnTablePosition);
         }
@@ -1080,8 +1080,8 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
 
     if(targetDistance > 0) {    //Check if turnTablePosition is still some distance away from the limit
       //Activate motor in the desired direction
-      turnTableTarget = 0;    //Reset turnTableTarget flag if there is distance between the turntable limit and turnTablePosition
-      if(turnTableState == 1) {
+      turnTableTarget = 0;    //Reset turnTableTarget flag to FALSE (has NOT reached target) if there is distance between the turntable limit and turnTablePosition
+      if(turnTableState == 1) {   //Check motor direction based on turnTabel State and set brake direction accordingly
         turnTable.run(-turnSpeed);    //Unintuitive negative motor speed for clockwise direction based on actual motor wire connections
       }
       else if(turnTableState == -1) {
@@ -1130,8 +1130,8 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
       delay(10);
       turnTable.run(0);    //Release motor by setting speed to zero
       turnTable.stop();
-      turnTableTarget = 1;   //Reset turnTableState to prevent this clause from running again if jystick is still held a movement direction after count has been reached
-      Serial.println("LIMIT REACHED!");
+      turnTableTarget = 1;   //Set turnTableState flag to TRUE once target value has been reached. This prevents this clause from running again if joystick is still held a movement direction after target value has been reached
+      Serial.println("TARGET VALUE REACHED!");
       Serial.print("Turntable Position: ");
       Serial.println(turnTablePosition);
     }
@@ -1139,12 +1139,12 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
 }
 
 
-void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values allow the function to be called without arguments to reset to a default position (at the default speed).
+void elbowMoveManual(int elbowPosition = 500, int elbowSpeed = 65) { //Default values allow the function to be called without arguments to reset to a default position (at the default speed).
   if(runArray[2] == 1) {    //Check if movement is allowed
     int lastPosition = analogRead(ELBOW_POT);   //read encoder position
     
     if(elbowPosition == ELBOW_MIN) {   //Check if command is to move "down"
-      if(lastPosition > ELBOW_MIN) {  //check if elbow has reached lower limit
+      if(lastPosition > ELBOW_MIN) {  //check if elbow has NOT reached lower limit
         elbow.run(-elbowSpeed);
         elbowDirection = -1;
         elbowState = -1;   //Set elbow as MOVING DOWN
@@ -1165,7 +1165,7 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
       }
     }
     else if(elbowPosition == ELBOW_MAX) {
-      if(lastPosition < ELBOW_MAX) {  //check if elbow has reached lower limit
+      if(lastPosition < ELBOW_MAX) {  //check if elbow has NOT reached upper limit
         elbow.run(elbowSpeed);
         elbowDirection = 1;
         elbowState = 1;   //Set elbow as MOVING UP
@@ -1214,13 +1214,13 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
   }
 }
 
-//TODO: Compare with original code and rename to shoulderMoveManual if different
-void shoulderMove(int shoulderPosition = 550, int shoulderSpeed = 131) { //Default values allow the function to be called without arguments to reset to a default position (at the default speed).
+
+void shoulderMoveManual(int shoulderPosition = 550, int shoulderSpeed = 131) { //Default values allow the function to be called without arguments to reset to a default "center" position (at the default speed).
   if(runArray[3] == 1) {    //Check if movement is allowed
     int lastPosition = analogRead(SHOULDER_POT);   //read encoder position
     
-    if(shoulderPosition == SHOULDER_MIN) {   //Check if command is to move "down"
-      if(lastPosition < SHOULDER_MIN) {  //check if shoulder has reached lower limit. lastPosition increases as shoulder lowers
+    if(shoulderPosition == SHOULDER_MIN) {   //Check if command is to move "DOWN"
+      if(lastPosition < SHOULDER_MIN) {  //check if shoulder has NOT reached lower limit. REVERSED: lastPosition INCREASES as shoulder LOWERS
         shoulder.run(shoulderSpeed);  //Positive motor speed when moving down
         shoulderDirection = 1;  //set to 1 for "positive" motor speed
         shoulderState = -1;   //Set shoulder as MOVING DOWN
@@ -1233,16 +1233,16 @@ void shoulderMove(int shoulderPosition = 550, int shoulderSpeed = 131) { //Defau
         //Brake motor once target position is reached
         shoulder.stop();
         shoulder.run(-shoulderSpeed); //Reverse motor direction to brake briefly
-        delay(15);
+        delay(15);          //pause for braking
         shoulder.run(0);    //Release motor by setting speed to zero
         shoulder.stop();
-        delay(30);
-        shoulderState = 0;   //Set shoulder as NOT MOVING to prevent retrigger is joystick is held in the same direction
-        Serial.print("LIMIT DOWN!\n\n");
+        delay(30);          //pause to make sure arm motion has fully stopped
+        shoulderState = 0;  //Set shoulder as NOT MOVING to prevent retrigger if joystick is held in the same direction
+        Serial.print("LIMIT DOWN!\n\n");    //Signal that the limit has be reached
       }
     }
-    else if(shoulderPosition == SHOULDER_MAX) {
-      if(lastPosition > SHOULDER_MAX) {  //check if shoulder has reached upper limit. lastPosition decreases as shoulder rises.
+    else if(shoulderPosition == SHOULDER_MAX) { //Check if command is to move "UP"
+      if(lastPosition > SHOULDER_MAX) {  //check if shoulder has NOT reached upper limit. REVERSED: lastPosition DECREASES as shoulder RISES.
         shoulder.run(-shoulderSpeed); //Negative speed when moving upward
         shoulderDirection = -1;   //set to -1 for "negative" motor speed
         shoulderState = 1;   //Set shoulder as MOVING UP
@@ -1361,6 +1361,10 @@ void tailGripper(int targetState, int gripTime = TAILGRIPTIME) {
       tailGripState = 0;
     }
     else if (targetState == CLOSE && tailGripState == 0) {
+
+/**********************************************************
+ * OLD CODE: Does not use steps for tail gripper movement
+ * **********************************************************
 //      Serial.println("Tail Close:");
 //      Serial.print("Speed: ");
 //      Serial.println(-gripSpeed);
@@ -1380,7 +1384,7 @@ void tailGripper(int targetState, int gripTime = TAILGRIPTIME) {
 //      tailGrip.run(0);    //Release motor by setting speed to zero
 //      tailGrip.stop();
 //      tailGripState = 1;
-
+**************************************************************/
       Serial.println("Tail Close:");
       Serial.print("Speed: ");
       Serial.println(-gripSpeed);
