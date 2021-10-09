@@ -84,10 +84,11 @@ const int TAILGRIPTIME = 400;  //Time for tail gripper at HALF SPEED (128) to go
 int NUM_SAMPLES = 9;    //The number of times the sonar sensor is sampled. These samples are then sorted from low to high.
 int SAMPLE_OFFSET = 3;  //The number of entries from the max (highest) entry in the sorted array of samples (i.e. the 7th item in a list of 10)
 //Potentiometer Limits
-const int ELBOW_MIN = 150; //Limit values for sensor
-const int ELBOW_MAX = 660;
-const int SHOULDER_MIN = 600;
-const int SHOULDER_MAX = 370;
+const int ELBOW_MAX = 700;  //Elbow UPPER limit
+const int ELBOW_GRIP = 250; //Best position where the arm gripper can transfer an object to the tail gripper.
+const int ELBOW_MIN = 20; //Elbow LOWER limit
+const int SHOULDER_MAX = 400; //Shoulder UPPER limit. REVERSED: sensor value DECREASES when the arm is moving UP.
+const int SHOULDER_MIN = 600; //Shoulder LOWER limit. REVERSED: sensor value INCREASES when the arm is moving DOWN.
 //Encoder Analog Limits
 //The encoders use the analog value from the opto-coupler sensor board. 
 //The Min/Max constants represent the "highest" and "lowest" analog values returned from the sensor. (These values can vary by sensor board and must be determined through testing.)
@@ -101,7 +102,7 @@ const int DRIVE_LEFT_ANALOG_MIN = 400;
 const int DRIVE_RIGHT_ANALOG_MAX = 700;
 const int DRIVE_RIGHT_ANALOG_MIN = 400;
 //State Variables
-int controlMode = 1;  //state to hold current mode of control (DRIVE or ARM). Defaults to "Arm"
+int controlMode = 2;  //state to hold current mode of control (DRIVE or ARM). Defaults to 2 ("STOP")
 int selectState = 0;  //state of Select Button (zero = "not activated", 1 = "activated")
 int triangleState = 0;    //remote control button states
 int circleState = 0;
@@ -187,7 +188,7 @@ void armGripperManual(int gripState, int gripTime = ARMGRIPTIME); //special vers
 void wristRotate (int targetState, int wristDirection = CW, float wristRevolution = 0.0, int wristSpeed = 255);  //targetState is (V)ertical or (H)orizontal, wristRevolution is the number of full revolutions to be perfomed.
 void wristManual(int wristDirection, int wristSpeed = 255);  //manual version of the wristRotate function. Requires a direction (CCW = -1, CW = 1)
 void elbowMove(int elbowPosition = 500, int elbowSpeed = 65);  //default parameter values are approximate center position and preferred default speed.
-void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 131); //default parameter values are approximate center position and preferred default speed.
+void shoulderMove(int shoulderPosition = 550, int shoulderSpeed = 131); //default parameter values are approximate center position and preferred default speed.
 void turnTableMove(int turnDegrees = 0, int turnDirection = CW, int turnSpeed = 65);    //turnDegrees is the degrees of angular rotation from the current position
 void turnTableManual(int commandState = 0, int turnSpeed = 65);    //special version of turnTableMove for remote control operation
 void tailGripper(int gripState, int gripTime = TAILGRIPTIME); //gripState is OPEN (0) or CLOSE (1)
@@ -247,7 +248,13 @@ void loop(){
      
       //Toggle Control Mode
       controlMode = !controlMode;   //toggle state variable for the mode (DRIVE or ARM)
+      if(controlMode == STOP) {  //INACTIVE MODE
+        //Do Nothing
+        //Wait for Select Button input
+      }
       if(controlMode == 0) {  //DRIVE MODE
+        Serial.print("DRIVE MODE!");
+        Serial.print("\n");
         //Reset runArray to only allow the drive motor commands
         runArray[0] = 0,  //runArray[0]: armGripper
         runArray[1] = 0,  //runArray[1]: wrist
@@ -266,6 +273,8 @@ void loop(){
         ps2.vibrate(PS2_MOTOR_2,0);
       }
       else if(controlMode == 1) { //ARM MODE
+        Serial.print("ARM MODE!");
+        Serial.print("\n");
         //Reset runArray to only allow the arm and gripper motor commands
         runArray[0] = 1,  //runArray[0]: armGripper
         runArray[1] = 1,  //runArray[1]: wrist
@@ -291,8 +300,8 @@ void loop(){
   }
 
 
-  //PERFORM ACTIONS BASED ON CONTROL MODE:
-  //DRIVE CONTROL MODE
+  //CHECK CONTROL MODE:
+  //DRIVE MODE
   if(controlMode == 0) {
     //Buttons
     //Left Joystick Press (L3)
@@ -1206,7 +1215,7 @@ void elbowMove(int elbowPosition = 500, int elbowSpeed = 65) { //Default values 
 }
 
 //TODO: Compare with original code and rename to shoulderMoveManual if different
-void shoulderMove(int shoulderPosition = 575, int shoulderSpeed = 131) { //Default values allow the function to be called without arguments to reset to a default position (at the default speed).
+void shoulderMove(int shoulderPosition = 550, int shoulderSpeed = 131) { //Default values allow the function to be called without arguments to reset to a default position (at the default speed).
   if(runArray[3] == 1) {    //Check if movement is allowed
     int lastPosition = analogRead(SHOULDER_POT);   //read encoder position
     
