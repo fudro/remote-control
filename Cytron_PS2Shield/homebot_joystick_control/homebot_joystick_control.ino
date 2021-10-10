@@ -635,7 +635,7 @@ void loop(){
       elbow_lift_speed = 0;    //if no detectable joystick movement
     }
     //Check for joystick movement beyond LEFT/RIGHT dead zone
-    if (joystick_right_X > 50 || joystick_right_X < -50) { 
+    if (joystick_right_X > 100 || joystick_right_X < -100) { 
       wrist_turn_speed = map(joystick_right_X, 0, 128, 0, 255); 
     }  
     else {
