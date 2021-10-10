@@ -556,7 +556,7 @@ void loop(){
     //JOYSTICKS
     
     //Find LEFT joystick distance from center position. Value of 128 is center in both X and Y axes.
-    //NOTE: if Cytron remote control unit is not connected toa remote, the button value will be returned as 255.
+    //NOTE: if Cytron remote control unit is not connected to a remote, the button value will be returned as 255.
     joystick_left_Y = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
     joystick_left_X = ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT/RotateCW is positive)
   
@@ -568,7 +568,7 @@ void loop(){
       shoulder_lift_speed = 0;    //if no detectable joystick movement
     }
     //Get Shoulder TURN speed. Check for joystick movement beyond LEFT/RIGHT dead zone.
-    if (joystick_left_X > 50 || joystick_left_X < -50) { 
+    if (joystick_left_X > 100 || joystick_left_X < -100) {  //Add a wide buffer for truntable rotation to prevent accidental rotation
       turntable_speed = map(joystick_left_X, 0, 128, 0, 255); 
     }  
     else {
@@ -578,7 +578,7 @@ void loop(){
     if (shoulder_lift_speed != 0) {
       Serial.print("left Y axis: ");
       Serial.println(ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS));
-      Serial.print("Left Joystick: ");
+      Serial.print("Left Joystick Lift: ");
       //MOVING DOWN (Joystick Forward)
       if (shoulder_lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
         Serial.print("Down! \n");
@@ -593,12 +593,15 @@ void loop(){
     else if(shoulder_lift_speed == 0 && shoulderState != 0) {
       //Stop
       shoulderMoveManual(STOP);
-      Serial.print("UP/DOWN NEUTRAL!!\n");
+      Serial.print("SHOULDER UP/DOWN NEUTRAL!!\n");
     }
   
     //Check LEFT/RIGHT direction
     if (turntable_speed != 0) {
-      Serial.print("Left Joystick: ");
+      Serial.print("Turntable Speed: ");
+      Serial.print(turntable_speed);
+      Serial.print("\n");
+      Serial.print("Left Joystick Rotation: ");
       //MOVING CW (Joystick Right)
       if (turntable_speed > 0) {   //Check LEFT/RIGHT direction of joystick (RIGHT is greater than zero and moves the shoulder CW)
         Serial.print("CW! \n");
@@ -655,7 +658,7 @@ void loop(){
     else if(elbow_lift_speed == 0 && elbowState != 0) {
       //Stop
         elbowMoveManual(STOP);
-        Serial.print("UP/DOWN NEUTRAL!!\n");
+        Serial.print("ELBOW UP/DOWN NEUTRAL!!\n");
     }
     
     //Check CW/CCW direction
@@ -1172,7 +1175,7 @@ void elbowMoveManual(int elbowPosition = 500, int elbowSpeed = 65) { //Default v
         Serial.print("\n");
         Serial.print("Elbow UP\t");
         Serial.print("Target Position: ");
-        Serial.print(lastPosition + 1);
+        Serial.print(lastPosition);
         Serial.print("\n");
       }
       else if(lastPosition >= ELBOW_MAX && elbowState == 1) {    //only stop motor is running. This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
@@ -1249,7 +1252,7 @@ void shoulderMoveManual(int shoulderPosition = 550, int shoulderSpeed = 131) { /
         Serial.print("\n");
         Serial.print("Shoulder UP\t");
         Serial.print("Target Position: ");
-        Serial.print(lastPosition + 1);
+        Serial.print(lastPosition);
         Serial.print("\n");
       }
       else if(lastPosition <= SHOULDER_MAX && shoulderState == 1) {    //Only stop if shoulderState has been set to "moving upward". This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
