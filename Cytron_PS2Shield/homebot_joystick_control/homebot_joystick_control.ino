@@ -117,7 +117,7 @@ int wristState = 0;  //state of wrist motor (-1 = CCW, 0 = NOT MOVING, 1 = CW)
 int elbowState = 0; //Initialize elbow as NOT MOVING
 int elbowDirection = 0; //Initialize elbow as NOT MOVING
 int shoulderState = 0; //Initialize shoulder as NOT MOVING
-int shoulderDirection = 0;  //Initialize shoulder direction as NEUTRAL
+int shoulderDirection = 0;  //Track direction of motor to facilitate proper braking direction. Initialize shoulderDirection to "zero" for NEUTRAL
 int turnTableState = 0; //Initialize shoulder as NOT MOVING
 int turnTableEncoder = 1; //state of turntable encoder as high(1) or low(0). Set initial state to 1 since this input pin is pulled high
 int turnTableSwitch = 0;  //state of turntable switch, default state is 0 (LOW)
@@ -411,7 +411,7 @@ void loop(){
   //ARM CONTROL MODE
   else if(controlMode == 1) {   
     /***************************
-      TRIGGERS
+      TRIGGERS - ARM MODE
      ***************************/
     //L1 and L2 Triggers (Used for Tail Gripper)
     if (ps2.readButton(PS2_LEFT_1) == 0) // 0 = pressed, 1 = released
@@ -454,7 +454,7 @@ void loop(){
     }
   
     /****************************
-        BUTTONS
+        BUTTONS - ARM MODE
     ****************************/
     //Triangle
     if(ps2.readButton(PS2_TRIANGLE) == 0) // 0 = pressed, 1 = released
@@ -517,7 +517,7 @@ void loop(){
     }
   
     /****************************
-        JOYSTICKS
+        JOYSTICK BUTTONS - ARM MODE
     ****************************/
   
     //JOYSTICK BUTTONS
@@ -552,9 +552,11 @@ void loop(){
       joystickRightState = 0;
       Serial.println("Right Joystick Released!");
     }
-  
-    //JOYSTICKS
-    
+
+    /*****************************
+        JOYSTICKS - ARM MODE
+    *****************************/
+    //LEFT JOYSTICK
     //Find LEFT joystick distance from center position. Value of 128 is center in both X and Y axes.
     //NOTE: if Cytron remote control unit is not connected to a remote, the button value will be returned as 255.
     joystick_left_Y = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
@@ -620,9 +622,10 @@ void loop(){
       turnTableManual(STOP);
       turnTableState = 0;
       turnTableCount = 1; //Reset turnTableCount. Default to 1 for easier calculations (15 ticks ~ 90 degrees)
-      Serial.print("LEFT/RIGHT NEUTRAL!!\n");
+      Serial.print("TURNTABLE ROTATION NEUTRAL!!\n");
     }
-  
+
+    //RIGHT JOYSTICK
     //Find RIGHT joystick distance from center position. Value of 128 is center in both X and Y axes.
     joystick_right_Y = 128 - ps2.readButton(PS2_JOYSTICK_RIGHT_Y_AXIS);  //Get joystick difference from center position (FORWARD/ShoulderDown is positive)
     joystick_right_X = ps2.readButton(PS2_JOYSTICK_RIGHT_X_AXIS) - 128;  //Get joystick difference from center position (RIGHT/RotateCW is positive)
@@ -658,6 +661,7 @@ void loop(){
     else if(elbow_lift_speed == 0 && elbowState != 0) {
       //Stop
         elbowMoveManual(STOP);
+        elbowState = 0;
         Serial.print("ELBOW UP/DOWN NEUTRAL!!\n");
     }
     
@@ -1156,7 +1160,7 @@ void elbowMoveManual(int elbowPosition = 500, int elbowSpeed = 65) { //Default v
         Serial.print(lastPosition);
         Serial.print("\n\n");
       }
-      else if(lastPosition <= ELBOW_MIN && elbowState == -1) {    //only stop motor is running. This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
+      else if(lastPosition <= ELBOW_MIN && elbowState == -1) {    //Only stop motor if limit has been reached or exceeded AND elbowState is set to "moving down". This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
         //Brake motor once target position is reached
         elbow.stop();
         elbow.run(elbowSpeed); //Reverse motor direction to brake briefly
@@ -1178,7 +1182,7 @@ void elbowMoveManual(int elbowPosition = 500, int elbowSpeed = 65) { //Default v
         Serial.print(lastPosition);
         Serial.print("\n");
       }
-      else if(lastPosition >= ELBOW_MAX && elbowState == 1) {    //only stop motor is running. This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
+      else if(lastPosition >= ELBOW_MAX && elbowState == 1) {    //Only stop motor if limit has been reached or exceeded AND elbowState is set to "moving up". This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
         //Brake motor once target position is reached
         elbow.stop();
         elbow.run(-elbowSpeed); //Reverse motor direction to brake briefly
@@ -1232,7 +1236,7 @@ void shoulderMoveManual(int shoulderPosition = 550, int shoulderSpeed = 131) { /
         Serial.print(lastPosition);
         Serial.print("\n\n");
       }
-      else if(lastPosition >= SHOULDER_MIN && shoulderState == -1) {    //Only stop if shoulderState has been set to "moving down". This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
+      else if(lastPosition >= SHOULDER_MIN && shoulderState == -1) {    //Only stop if limit has been reached or exceeded AND shoulderState has been set to "moving down". This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
         //Brake motor once target position is reached
         shoulder.stop();
         shoulder.run(-shoulderSpeed); //Reverse motor direction to brake briefly
@@ -1241,7 +1245,7 @@ void shoulderMoveManual(int shoulderPosition = 550, int shoulderSpeed = 131) { /
         shoulder.stop();
         delay(30);          //pause to make sure arm motion has fully stopped
         shoulderState = 0;  //Set shoulder as NOT MOVING to prevent retrigger if joystick is held in the same direction
-        Serial.print("LIMIT DOWN!\n\n");    //Signal that the limit has be reached
+        Serial.print("SHOULDER LIMIT DOWN!\n\n");    //Signal that the limit has be reached
       }
     }
     else if(shoulderPosition == SHOULDER_MAX) { //Check if command is to move "UP"
@@ -1255,7 +1259,7 @@ void shoulderMoveManual(int shoulderPosition = 550, int shoulderSpeed = 131) { /
         Serial.print(lastPosition);
         Serial.print("\n");
       }
-      else if(lastPosition <= SHOULDER_MAX && shoulderState == 1) {    //Only stop if shoulderState has been set to "moving upward". This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
+      else if(lastPosition <= SHOULDER_MAX && shoulderState == 1) {    //Only stop if shoulderState has been reached or exceeded AND shouderState is set to "moving upward". This prevent the reverse braking method to cause unnecessary jitter in the motor when there is no change in state.
         //Brake motor once target position is reached
         shoulder.stop();
         shoulder.run(shoulderSpeed); //Reverse motor direction to brake briefly
@@ -1264,7 +1268,7 @@ void shoulderMoveManual(int shoulderPosition = 550, int shoulderSpeed = 131) { /
         shoulder.stop();
         delay(30);
         shoulderState = 0;   //Set shoulder as NOT MOVING
-        Serial.print("LIMIT UP!\n\n");
+        Serial.print("SHOULDER LIMIT UP!\n\n");
       }
     }
     else if(shoulderPosition == STOP) {
