@@ -246,11 +246,12 @@ void loop(){
       selectState = 1;
       Serial.println("Select Pressed!");
      
-      //Toggle Control Mode
-      controlMode = !controlMode;   //toggle state variable for the mode (DRIVE or ARM)
+      //Check Control Mode
       if(controlMode == STOP) {  //INACTIVE MODE
-        //Do Nothing
-        //Wait for Select Button input
+        controlMode = 0;  //set to DRIVE MODE
+      }
+      else {
+        controlMode = !controlMode;   //toggle state variable for the mode (DRIVE or ARM)
       }
       if(controlMode == 0) {  //DRIVE MODE
         Serial.print("DRIVE MODE!");
@@ -266,11 +267,11 @@ void loop(){
         runArray[7] = 0;  //runArray[7]: sonar
         ps2.vibrate(PS2_MOTOR_1,255);   //Vibrate desired motor (1 or 2) at the max speed (255)
         delay(300);
-        ps2.vibrate(PS2_MOTOR_1,0);
+        ps2.vibrate(PS2_MOTOR_1,0);     //Stop vibraton (set speed to zero)
         delay(200);
         ps2.vibrate(PS2_MOTOR_2,255);   //Vibrate desired motor (1 or 2) at the max speed (255)
         delay(300);
-        ps2.vibrate(PS2_MOTOR_2,0);
+        ps2.vibrate(PS2_MOTOR_2,0);     //Stop vibraton (set speed to zero)
       }
       else if(controlMode == 1) { //ARM MODE
         Serial.print("ARM MODE!");
@@ -295,7 +296,7 @@ void loop(){
   {
     selectState = 0;
     Serial.println("Select Released!");
-    ps2.vibrate(PS2_MOTOR_1,0); 
+    ps2.vibrate(PS2_MOTOR_1,0);   //Stop all vibraton (set speed to zero)
     ps2.vibrate(PS2_MOTOR_2,0);
   }
 
@@ -578,8 +579,11 @@ void loop(){
     }
     //Check LIFT direction
     if (shoulder_lift_speed != 0) {
+      Serial.print("\n");
       Serial.print("left Y axis: ");
       Serial.println(ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS));
+      Serial.print("left X axis: ");
+      Serial.println(ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS));
       Serial.print("Left Joystick Lift: ");
       //MOVING DOWN (Joystick Forward)
       if (shoulder_lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
@@ -1060,7 +1064,7 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
         }
       }
     }
-    //if rotating CCW (sommandState "negative")
+    //if rotating CCW (commandState "negative")
     else if(commandState < 0 && turnTableState != 0) {   //The turnTableState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection. IMPORTANT: turnTableState is reset to zero when the limit is reached.
       targetDistance = turnTablePosition;   //targetDistance is just equal to the current turnTablePosition since we are rotating arm towards "zero" (towards tail gripper)
       conversionRate = 14.0;   //adjust tick target due to tension from the main cable.
