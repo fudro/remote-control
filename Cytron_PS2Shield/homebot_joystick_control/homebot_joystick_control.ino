@@ -248,7 +248,7 @@ void loop(){
      
       //Check Control Mode
       if(controlMode == STOP) {  //INACTIVE MODE
-        controlMode = 0;  //set to DRIVE MODE
+//        controlMode = 0;  //set to DRIVE MODE
       }
       else {
         controlMode = !controlMode;   //toggle state variable for the mode (DRIVE or ARM)
