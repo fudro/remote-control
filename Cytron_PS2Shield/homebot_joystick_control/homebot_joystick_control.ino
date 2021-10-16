@@ -231,6 +231,7 @@ void setup()
   
   ps2.begin(115200);          //Start remote control shield and set baud rate (baudrate must be the same as the jumper setting at PS2 shield)
   Serial.println("Remote Control Ready!");
+  Serial.println("Remember to reset arm position (L3)!");
 
   Serial2.begin(115200);       //Set MegaPi serial channel for remote control communication
 }
@@ -581,9 +582,9 @@ void loop(){
     if (shoulder_lift_speed != 0) {
       Serial.print("\n");
       Serial.print("left Y axis: ");
-      Serial.println(ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS));
+      Serial.println(joystick_left_Y);
       Serial.print("left X axis: ");
-      Serial.println(ps2.readButton(PS2_JOYSTICK_LEFT_X_AXIS));
+      Serial.println(joystick_left_X);
       Serial.print("Left Joystick Lift: ");
       //MOVING DOWN (Joystick Forward)
       if (shoulder_lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
@@ -650,6 +651,14 @@ void loop(){
     }
     //Check UP/DOWN direction
     if (elbow_lift_speed != 0) {
+      Serial.print("\n");
+      Serial.print("Right Y axis: ");
+      Serial.println(joystick_right_Y);
+      Serial.print("Right X axis: ");
+      Serial.println(joystick_right_X);
+      Serial.print("Elbow Lift Speed: ");
+      Serial.print(elbow_lift_speed);
+      Serial.print("\n");
       Serial.print("Right Joystick: ");
       //MOVING DOWN (Joystick Forward)
       if (elbow_lift_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
@@ -671,6 +680,9 @@ void loop(){
     
     //Check CW/CCW direction
     if (wrist_turn_speed != 0) {
+      Serial.print("Wrist Turn Speed: ");
+      Serial.print(wrist_turn_speed);
+      Serial.print("\n");
       Serial.print("Right Joystick: ");
       //MOVING CW (Joystick Right)
       if (wrist_turn_speed > 0) {   //Check FORWARD/BACK direction of joystick (FORWARD is greater than zero and moves the shoulder DOWN)
@@ -1023,7 +1035,7 @@ void turnTableReset() {
 void turnTableManual(int commandState = 0, int turnSpeed = 65) {
   if(runArray[4] == 1) {    //Check flag to see if movement of this joint is allowed
     float targetDistance = 0;   //store the distance to the limit of turntable travel measured in encoder ticks
-    float conversionRate = 14.0;
+ //   float conversionRate = 14.0;
 
     //if Stopped
     if(commandState == STOP) {
@@ -1041,12 +1053,12 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
       turnTable.stop();
       Serial.print("Turntable Position: ");   //Display stored global arm position
       Serial.println(turnTablePosition);
-      Serial.println("JOYSTICK STOPPED!");
+      Serial.println("TURNTABLE STOPPED!");
     }
     //if rotating CW (commandState "positive")
     else if(commandState > 0 && turnTableState != 0) {   //The turnTableState flag prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection. IMPORTANT: turnTableState is reset to zero when the limit is reached.
       targetDistance = TURNTABLE_LIMIT - turnTablePosition; //Since the joystick can be release at any time, set targetDistance to the maximum distance required to move the arm to the fully extended position (180 degrees from tail gripper). TURNTABLE_LIMIT is the number of encoder ticks to travel 180 degrees.
-      conversionRate = 14.5;
+ //     conversionRate = 14.5;
       Serial.println("Turntable CW");
 
       //Check if LAST state of Turntable Hall Effect sensor was LOW (hall effect sensor is "activated" when LOW - arm gripper is aligned with tail gripper)
@@ -1067,7 +1079,7 @@ void turnTableManual(int commandState = 0, int turnSpeed = 65) {
     //if rotating CCW (commandState "negative")
     else if(commandState < 0 && turnTableState != 0) {   //The turnTableState check prevents motor from continuing to run if stopped by tick count and joystick is still held in a movement diection. IMPORTANT: turnTableState is reset to zero when the limit is reached.
       targetDistance = turnTablePosition;   //targetDistance is just equal to the current turnTablePosition since we are rotating arm towards "zero" (towards tail gripper)
-      conversionRate = 14.0;   //adjust tick target due to tension from the main cable.
+//      conversionRate = 14.0;   //adjust tick target due to tension from the main cable.
       Serial.println("Turntable CCW");
       
       //Check if Hall Effect sensor state is NOT activated (hall effect sensor is "activated" when LOW)
