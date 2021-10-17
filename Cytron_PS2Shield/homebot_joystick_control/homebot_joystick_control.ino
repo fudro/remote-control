@@ -231,7 +231,6 @@ void setup()
   
   ps2.begin(115200);          //Start remote control shield and set baud rate (baudrate must be the same as the jumper setting at PS2 shield)
   Serial.println("Remote Control Ready!");
-  Serial.println("Remember to reset arm position (L3)!");
 
   Serial2.begin(115200);       //Set MegaPi serial channel for remote control communication
 }
@@ -249,7 +248,7 @@ void loop(){
      
       //Check Control Mode
       if(controlMode == STOP) {  //INACTIVE MODE
-//        controlMode = 0;  //set to DRIVE MODE
+        controlMode = 0;  //set to DRIVE MODE
       }
       else {
         controlMode = !controlMode;   //toggle state variable for the mode (DRIVE or ARM)
@@ -277,6 +276,7 @@ void loop(){
       else if(controlMode == 1) { //ARM MODE
         Serial.print("ARM MODE!");
         Serial.print("\n");
+        Serial.println("Remember to reset arm position (L3)!");
         //Reset runArray to only allow the arm and gripper motor commands
         runArray[0] = 1,  //runArray[0]: armGripper
         runArray[1] = 1,  //runArray[1]: wrist
