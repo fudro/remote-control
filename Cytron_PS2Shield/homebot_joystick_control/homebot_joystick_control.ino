@@ -1415,7 +1415,7 @@ void tailGripper(int targetState, int gripTime = TAILGRIPTIME) {
       Serial.println(gripTime);
       int runDelay = 10;
       int gripIterations = floor(gripTime/runDelay);
-      Serial.print("Grit Iterations: ");
+      Serial.print("Grip Iterations: ");
       Serial.println(gripIterations);
       while(tailGripCount < (gripIterations * 2)) {    //divide gripTime by the amount of time the motor will run each iteration
         tailGrip.run(-gripSpeed); 
