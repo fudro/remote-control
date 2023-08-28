@@ -87,7 +87,7 @@ void setup()
 {
   ps2.begin(9600);    // Set the Software Serial baudrate. This baudrate must match the jumper setting on the PS2 shield.
                       //IMPORTANT: 9600 is the most reliable baudrate to prevent errant values being received by the shield.
-  Serial.begin(115200); // Set serial monitor baudrate. It is OK to set this to the maximum rate.
+  Serial.begin(115200); // Set serial monitor baudrate. It is OK to set this to a rate higher than the PS2 shield software serial.
   Serial.println("BigDog Remote Control Test!");
 
   pinMode(out1_A, OUTPUT);
@@ -106,22 +106,22 @@ void setup()
 
 void loop()
 {
-  //Find LEFT joystick distance from center position. Value of 128 is center of the Y axis.
-  joystick_left_Y = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD is positive)
+  //Find LEFT joystick distance from center position. Value of 128 is center of the Y axis. Fully Forward is Zero. Fully Backward is 255.
+  joystick_left_Y = 128 - ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS);  //Get joystick difference from center position (FORWARD is positive, BACKWARD is negative)
 
-  //Get LEFT DRIVE speed. Check for joystick movement beyond UP/DOWN dead zone.
-  if (joystick_left_Y > 20 || joystick_left_Y < -20) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for DOWN and UP). Defaults to 20 for both.
+  //Get LEFT DRIVE speed. Check for joystick movement beyond FORWARD/BACKWARD dead zone.
+  if (joystick_left_Y > 20 || joystick_left_Y < -20) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD). Defaults to 20 for both.
     drive_speed_left = map(joystick_left_Y, 0, 128, 0, 128);    //Map values to HALF (255/2) of max power for better drivability.
   }
   else {
     drive_speed_left = 0;    //if no detectable joystick movement (beyond dead zone)
   }
 
-  //Find RIGHT joystick distance from center position. Value of 128 is center of the Y axes.
+  //Find RIGHT joystick distance from center position. Value of 128 is center of the Y axis. Fully Forward is Zero. Fully Backward is 255.
   joystick_right_Y = 128 - ps2.readButton(PS2_JOYSTICK_RIGHT_Y_AXIS);  //Get joystick difference from center position (FORWARD is positive)
 
   //Check for joystick movement beyond UP/DOWN dead zone
-  if (joystick_right_Y > 20 || joystick_right_Y < -20) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for DOWN and UP). Defaults to 20 for both.
+  if (joystick_right_Y > 20 || joystick_right_Y < -20) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD). Defaults to 20 for both.
     drive_speed_right = map(joystick_right_Y, 0, 128, 0, 128);    //Map values to HALF (255/2) of max power for better drivability.
   }
   else {
