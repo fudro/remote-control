@@ -66,21 +66,20 @@ int drive_speed_left = 0;     //Movement speeds for each side of the robot
 int drive_speed_right = 0;
 
 //Motor Controller Variables
+/*IMPORTANT:
+ * Make sure the pin assignments are as follows: 
+ * out1_A = 7, out1_B = 8, out2_A = 4, out2_B = 9
+ * Otherwise the wheel rotation directions may not work as expected.
+ */
+ //LEFT and RIGHT motor ports are based on the physical configuration of the Big Dog robot.
+int out1_A = 7;  //Motor Port 1 (RIGHT)
+int out1_B = 8;
+int out2_A = 4;  //Motor Port 2 (LEFT)
+int out2_B = 9;
 
- int out1_A = 7;  //Motor Port 1
- int out1_B = 8;
- int out2_A = 4;  //Motor Port 2
- int out2_B = 9;
-/*
- int out1_A = 9;  //Motor Port 1
- int out1_B = 4;
- int out2_A = 8;  //Motor Port 2
- int out2_B = 7;
-*/
- int pwm_1 = 5;   //pins 5 and 6 have the highest pwm frequency on the Uno (980Hz). For Uno Wifi Rev2, all PWM pins operate at 976Hz.
- int pwm_2 = 6;
-
- int errant_value = -64; //The remote control shield will sometimes provide errant values.
+//pins 5 and 6 have the highest pwm frequency on the Uno (980Hz). For Uno Wifi Rev2, all PWM pins operate at 976Hz.
+int pwm_right = 5;   //RIGHT WHEELS
+int pwm_left = 6;   //LEFT WHEELS
 
 
 void setup()
@@ -94,8 +93,8 @@ void setup()
   pinMode(out1_B, OUTPUT);
   pinMode(out2_A, OUTPUT);
   pinMode(out2_B, OUTPUT);
-  pinMode(pwm_1, OUTPUT);
-  pinMode(pwm_2, OUTPUT);
+  pinMode(pwm_right, OUTPUT);
+  pinMode(pwm_left, OUTPUT);
 
   //Initialize all motors as "braked"
   digitalWrite(out1_A, LOW);
@@ -111,7 +110,7 @@ void loop()
 
   //Get LEFT DRIVE speed. Check for joystick movement beyond FORWARD/BACKWARD dead zone.
   if (joystick_left_Y > 20 || joystick_left_Y < -20) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD). Defaults to 20 for both.
-    drive_speed_left = map(joystick_left_Y, 0, 128, 0, 128);    //Map values to HALF (255/2) of max power for better drivability.
+    drive_speed_left = map(joystick_left_Y, 0, 128, 0, 255);    //Map values to HALF (255/2) of max power for better drivability.
   }
   else {
     drive_speed_left = 0;    //if no detectable joystick movement (beyond dead zone)
@@ -122,7 +121,7 @@ void loop()
 
   //Check for joystick movement beyond UP/DOWN dead zone
   if (joystick_right_Y > 20 || joystick_right_Y < -20) {      //Create "dead zone" for when joystick is centered (with independent adjustment values for FORWARD and BACKWARD). Defaults to 20 for both.
-    drive_speed_right = map(joystick_right_Y, 0, 128, 0, 128);    //Map values to HALF (255/2) of max power for better drivability.
+    drive_speed_right = map(joystick_right_Y, 0, 128, 0, 255);    //Map values to HALF (255/2) of max power for better drivability.
   }
   else {
     drive_speed_right = 0;    //if no detectable joystick movement (beyond dead zone)
@@ -130,44 +129,50 @@ void loop()
 
   //Send command to motor controller
   moveRobot(drive_speed_left, drive_speed_right);
+  Serial.print(ps2.readButton(PS2_JOYSTICK_LEFT_Y_AXIS));
+  Serial.print("\t");
   Serial.print(drive_speed_left);
+  Serial.print("\t");
+  Serial.print("\t");
+  Serial.print(ps2.readButton(PS2_JOYSTICK_RIGHT_Y_AXIS));
   Serial.print("\t");
   Serial.print(drive_speed_right);
   Serial.print("\n");
   delay(100);
 }
 
- void moveRobot(int left_pwm, int right_pwm) {
+ void moveRobot(int left_speed, int right_speed) {
   //Set Speeds
-  analogWrite(pwm_1, left_pwm);
-  analogWrite(pwm_2, right_pwm);
+  analogWrite(pwm_left, left_speed);
+  analogWrite(pwm_right, right_speed);
   //Set Left Wheel Direction
-  if (left_pwm > 0) { //Forward
+  if (left_speed > 0) { //Forward
     digitalWrite(out2_A, HIGH);
     digitalWrite(out2_B, LOW);
   }
-  else if (left_pwm < 0) {  //Backward (Ignore errant values of -64)
-    left_pwm *= -1;         //Change negative value provided by joystick to a positive PWM value
-    analogWrite(pwm_1, left_pwm); //Update pin to local PWM variable
+  else if (left_speed < 0) {  //Backward
+    left_speed *= -1;         //Change negative value provided by joystick to a positive PWM value
+    analogWrite(pwm_left, left_speed); //Update pin to corrected PWM value
     digitalWrite(out2_A, LOW);
     digitalWrite(out2_B, HIGH);
   }
-  else if (left_pwm == 0) {  //Stopped
+  else if (left_speed == 0) {  //Stopped
     digitalWrite(out2_A, LOW);
     digitalWrite(out2_B, LOW);
   }
+  
   //set Right Wheel Direction
-  if (right_pwm > 0) { //Forward
+  if (right_speed > 0) { //Forward
     digitalWrite(out1_A, HIGH);
     digitalWrite(out1_B, LOW);
   }
-  else if (right_pwm < 0) {  //Backward (Ignore errant values of -64)
-    right_pwm *= -1;         //Change negative value provided by joystick to a positive PWM value
-    analogWrite(pwm_2, right_pwm); //Update pin to local PWM variable
+  else if (right_speed < 0) {  //Backward
+    right_speed *= -1;         //Change negative value provided by joystick to a positive PWM value
+    analogWrite(pwm_right, right_speed); //Update pin to corrected PWM value
     digitalWrite(out1_A, LOW);
     digitalWrite(out1_B, HIGH);
   }
-  else if (right_pwm == 0) {  //Stopped
+  else if (right_speed == 0) {  //Stopped
     digitalWrite(out1_A, LOW);
     digitalWrite(out1_B, LOW);
   }
